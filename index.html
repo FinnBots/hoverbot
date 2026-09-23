@@ -1,0 +1,2243 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>HOVERBOT — a FinnBots game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jersey+15&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --plum:#5f4c57; --plum-deep:#3e323a; --amber:#f2a03d; --electric:#3a6ff7;
+    --peach:#f5c8a0; --soft:#fdf3e7; --ink:#3e323a; --muted:#8a7a82; --red:#c0392b;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s6:24px;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px;
+    --sh1:0 1px 2px rgba(62,50,58,.12); --sh2:0 4px 14px rgba(62,50,58,.16);
+    --disp:'Jersey 15',system-ui,sans-serif; --body:'Plus Jakarta Sans',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100dvh;overflow:hidden;margin:0}
+  body{ font-family:var(--body); color:var(--ink);
+    background:radial-gradient(120% 80% at 50% 0%, var(--soft), var(--peach));
+    -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none; touch-action:none; }
+  /* ===== GAME-FIRST LAYOUT: the canvas owns the viewport; chrome is one slim bar =====
+     (Folded back from BOTMAN, 2026-09-19 — every game maximises the play area.) */
+  .wrap{height:100%;max-width:1400px;margin:0 auto;display:flex;flex-direction:column;padding:var(--s2) var(--s1) var(--s1);gap:var(--s1)}
+  .topbar{display:flex;align-items:center;gap:var(--s2);min-height:32px;flex:none}
+  .pill{font-family:var(--disp);font-size:15px;letter-spacing:.5px;color:#fff;background:var(--plum);padding:2px var(--s3);border-radius:999px;box-shadow:var(--sh1);white-space:nowrap}
+  .title{font-family:var(--disp);font-size:22px;line-height:1;color:var(--plum-deep);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .iconbtn{appearance:none;border:0;background:#fff;color:var(--plum);width:30px;height:30px;border-radius:50%;font-family:var(--disp);font-size:17px;box-shadow:var(--sh1);cursor:pointer;flex:none}
+  .iconbtn:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
+  .modebar{display:flex;gap:2px;background:rgba(255,255,255,.55);border-radius:999px;padding:2px;box-shadow:var(--sh1);flex:none}
+  .modepill{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:12.5px;padding:4px 11px;border-radius:999px;background:transparent;color:var(--muted);white-space:nowrap}
+  .modepill.active{background:var(--amber);color:var(--plum-deep)}
+  .modepill:disabled{opacity:.5;cursor:default}
+  .modepill:focus-visible{outline:2px solid var(--electric);outline-offset:2px}
+  .testBanner{background:var(--amber);color:#4a2c10;font-weight:700;text-align:center;font-size:11.5px;padding:4px 10px;border-radius:var(--r-md);flex:none}
+  .testBanner.hidden{display:none}
+  .walletbar{display:none;flex-direction:column;gap:5px;background:rgba(255,255,255,.6);border-radius:var(--r-md);padding:7px var(--s3);box-shadow:var(--sh1);flex:none}
+  body.mode-paid .walletbar{display:flex}
+  .walletrow{display:flex;align-items:center;gap:8px}
+  .walletrow .lbl{font-size:12px;color:var(--plum-deep);flex:1;line-height:1.3}
+  .connect-btn{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:14px;background:var(--plum);color:#fff;padding:6px 16px;border-radius:999px;box-shadow:var(--sh1)}
+  .connect-btn:disabled{opacity:.6;cursor:default}
+  .wallet-status{font-size:12px;color:var(--muted);line-height:1.35}
+  .wallet-status.hidden{display:none}
+  .wallet-status.ok{color:var(--plum-deep)} .wallet-status.warn{color:var(--red)}
+  .wallet-status .addr{font-family:ui-monospace,monospace;color:var(--plum)}
+  /* facts: hidden in Free (the How-To carries the message); slim safety line only in Paid */
+  .facts{display:none;font-size:11.5px;color:var(--plum-deep);background:rgba(255,255,255,.6);border-radius:var(--r-md);padding:4px var(--s3);text-align:center;align-items:center;justify-content:center;gap:8px;box-shadow:var(--sh1);flex:none}
+  body.mode-paid .facts{display:flex}
+  .facts b{font-weight:700}
+  .dot-sep{opacity:.4}
+  /* Slim HUD row (SCORE / TIME / LIVES). If your game draws its OWN in-canvas HUD (like BOTMAN),
+     hide this to reclaim the row for even more canvas:  .hud{display:none}  */
+  .hud{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--s2) var(--s3);font-family:var(--disp);color:var(--plum-deep);background:rgba(255,255,255,.55);border-radius:var(--r-md);padding:3px var(--s4);min-height:26px;box-shadow:var(--sh1);flex:none}
+  .hud .lab{font-size:10px;color:var(--muted);letter-spacing:1px}
+  .hud .val{font-size:16px;line-height:1}
+  .hud .val.warn{color:var(--red)}
+  .lives{display:inline-flex;gap:4px;align-items:center}
+  .life{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:var(--sh1)}
+  .life.off{background:rgba(0,0,0,.14);box-shadow:none}
+  /* the play surface eats ALL remaining space; the canvas maxes inside it (JS letterboxes) */
+  .surface{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:2px 0}
+  /* Canvas fit — fills the surface, letterboxed by fitCanvas. Tune aspect-ratio to your game (portrait 224/288, landscape 3/2). */
+  canvas{ width:100%;height:auto;max-width:100%;max-height:100%;aspect-ratio:224/298;background:#20150f;border-radius:var(--r-lg);box-shadow:var(--sh2);image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none; }
+  .controls{display:flex;gap:var(--s4);align-items:center;justify-content:center;flex:none;padding:2px 0}
+  .dpad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,42px);gap:5px}
+  .ctl{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:20px;color:var(--plum-deep);background:rgba(255,255,255,.9);border-radius:var(--r-sm);box-shadow:var(--sh1);touch-action:none;user-select:none;-webkit-user-select:none;display:flex;align-items:center;justify-content:center}
+  .ctl:active,.ctl.on{transform:translateY(1px);background:var(--amber)}
+  .ctl:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
+  .ctl.fire{font-size:13px;color:#fff;background:var(--plum)}
+  .ctl.fire:active,.ctl.fire.on{background:var(--plum-deep)}
+  /* HOVERBOT draws its own SCORE / SHAFT / LIVES / CHARGES / LAMP ribbon inside the
+     canvas, so the chassis HUD row is hidden to give the shaft that much more height. */
+  .hud{display:none}
+  /* two-thumb cluster: rotor+steer left, charge+beam right */
+  .controls.twohand{width:100%;max-width:560px;margin:0 auto;justify-content:space-between;padding:2px 8px}
+  .cluster{display:flex;align-items:center;gap:8px}
+  .cluster.move{display:grid;grid-template-columns:repeat(2,52px);grid-template-rows:repeat(2,40px);gap:5px}
+  #padU{grid-area:1/1/2/3} #padL{grid-area:2/1/3/2} #padR{grid-area:2/2/3/3}
+  .ctl.blast{width:48px;height:48px;border-radius:50%;background:var(--red);color:#fff;font-size:13px}
+  .ctl.blast:active,.ctl.blast.on{background:#8e2a20}
+  .ctl.fire{width:64px;height:64px;border-radius:50%;font-size:14px}
+  @media (min-height:720px){ .cluster.move{grid-template-rows:repeat(2,44px)} }
+  /* footer retired to reclaim the row — its links live in the How-To overlay (.lnks) */
+  .foot{display:none}
+  @media (min-height:720px){ .dpad{grid-template-columns:repeat(3,54px);grid-template-rows:repeat(3,46px)} }
+  @media (pointer:fine){ .controls{opacity:.92} }
+  /* ===== ORIENTATION-AWARE PLAY AREA (JS adds body.is-portrait / .is-landscape from the canvas aspect) =====
+     LANDSCAPE games are width-bound → the 1400px .wrap already grows them; nothing extra needed.
+     PORTRAIT games are height-bound → the ONLY way to enlarge the canvas is to reclaim vertical chrome,
+     so trim padding/title/controls and drop the Free-mode facts line. Keeps d-pad ≥44px (tappable). */
+  body.is-portrait .wrap{padding-top:4px;padding-bottom:4px;gap:4px}
+  body.is-portrait:not(.mode-paid) .facts{display:none}
+  body.is-portrait .topbar{min-height:0}
+  body.is-portrait .title{font-size:18px}
+  body.is-portrait .controls{padding:2px 0}
+  /* d-pad control cluster hugs its content (centered pill), not a full-width empty bar.
+     :has(.dpad) leaves two-thumb / canvas-only control rows (which span on purpose) alone. */
+  body.is-portrait .controls:has(.dpad){align-self:center;width:auto;padding:6px 18px}
+  body.is-portrait .dpad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,38px)}
+  @media (min-height:720px){ body.is-portrait .dpad{grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,40px)} }
+  .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(42,34,48,.55);backdrop-filter:blur(2px);padding:var(--s4);z-index:20}
+  .overlay.show{display:flex}
+  body.mode-paid .modebar,body.mode-paid .walletbar{position:relative;z-index:21}
+  .card{background:var(--soft);border-radius:var(--r-xl);box-shadow:var(--sh2);max-width:380px;width:100%;padding:var(--s6);text-align:center}
+  .card h2{font-family:var(--disp);font-size:30px;margin:0 0 var(--s2);color:var(--plum-deep)}
+  .card.win h2{color:var(--amber)}
+  .card p{font-size:13.5px;line-height:1.5;margin:var(--s2) 0;color:var(--plum-deep)}
+  .card .big{font-family:var(--disp);font-size:22px;color:var(--plum-deep);margin:var(--s3) 0}
+  .card .big span{color:var(--amber)}
+  .btn{appearance:none;border:0;font-family:var(--disp);font-size:18px;color:#fff;background:var(--plum);padding:10px var(--s6);border-radius:999px;cursor:pointer;box-shadow:var(--sh1);margin-top:var(--s3)}
+  .btn:hover{background:var(--plum-deep)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn:focus-visible{outline:3px solid var(--electric);outline-offset:2px}
+  .rules{text-align:left}
+  .rules li{font-size:13px;line-height:1.55;margin:5px 0}
+  .safe{font-size:11.5px;color:var(--muted);margin-top:var(--s3)}
+  .lnks{font-size:12.5px;margin-top:var(--s3)}
+  .lnks a{color:var(--plum);text-decoration:none;margin:0 6px;font-weight:600}
+  .lnks a:hover{text-decoration:underline}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  .sheet{position:fixed;inset:0;background:rgba(42,34,48,.6);display:none;align-items:center;justify-content:center;padding:var(--s4);z-index:30}
+  .sheet.show{display:flex}
+  .panel{width:100%;max-width:340px;background:var(--soft);border-radius:var(--r-xl);padding:var(--s6);box-shadow:var(--sh2);text-align:center}
+  .panel h2{font-family:var(--disp);font-size:24px;margin:0 0 var(--s2);color:var(--plum-deep)}
+  .panel p{font-size:13px;color:var(--plum-deep);margin:0 0 var(--s4);line-height:1.5}
+  .panel .again{appearance:none;border:0;cursor:pointer;font-family:var(--disp);font-size:16px;background:var(--amber);color:#4a2c10;padding:11px var(--s6);border-radius:999px;display:block;width:100%;margin-bottom:var(--s2);box-shadow:var(--sh1)}
+  .panel .ghostbtn{appearance:none;border:1px solid rgba(95,76,87,.25);cursor:pointer;font-family:var(--body);font-weight:600;font-size:14px;background:transparent;color:var(--plum);padding:9px 18px;border-radius:999px;display:block;width:100%;box-sizing:border-box;text-decoration:none;margin-bottom:var(--s2)}
+  .panel .ghostbtn:last-child{margin-bottom:0}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <h1 class="title">HOVERBOT</h1>
+      <div class="modebar" role="tablist" aria-label="Play mode">
+        <button class="modepill active" id="modeFree" type="button" role="tab">Free</button>
+        <button class="modepill" id="modePaid" type="button" role="tab">Paid · 25</button>
+      </div>
+      <button class="iconbtn" id="restartBtn" aria-label="Restart" title="Restart (R)">⟲</button>
+      <button class="iconbtn" id="infoBtn" aria-label="How to play">ⓘ</button>
+    </header>
+
+    <div class="testBanner hidden" id="testBanner">🧪 TEST MODE — local validator, fake $OIL. No real value moves.</div>
+
+    <div class="walletbar" id="walletbar">
+      <div class="walletrow">
+        <span class="lbl">Paid — 25 OIL entry · fun leaderboard, not verified</span>
+        <button class="connect-btn" id="connectBtn" type="button">Connect</button>
+      </div>
+      <div class="wallet-status hidden" id="walletStatus"></div>
+    </div>
+
+    <div class="facts" id="facts">
+      <span>Free to play</span><span class="dot-sep">·</span>
+      <span>wallet-free</span><span class="dot-sep">·</span>
+      <span><b>pays nothing</b></span>
+    </div>
+
+    <div class="hud" aria-live="polite">
+      <div><span class="lab">SCORE </span><span class="val" id="score">000000</span></div>
+      <div><span class="lab">TIME </span><span class="val" id="stat1">0</span></div>
+      <div><span class="lab">LIVES </span><span class="lives" id="lives"></span></div>
+    </div>
+
+    <main class="surface">
+      <canvas id="game" width="224" height="298" aria-label="HOVERBOT play area."></canvas>
+    </main>
+
+    <!-- The H.E.R.O. cabinet, two-thumb: joystick UP = rotor, LEFT/RIGHT = fly,
+         DOWN = drop a charge (ground only), button = beam. MOVEMENT under the left
+         thumb, ACTIONS under the right, independent held-flags so rotor + steer +
+         beam all run at once. -->
+    <div class="controls twohand" aria-label="Controls">
+      <div class="cluster move">
+        <button class="ctl" id="padU" type="button" aria-label="Rotor (fly up)">▲</button>
+        <button class="ctl" id="padL" type="button" aria-label="Left">◀</button>
+        <button class="ctl" id="padR" type="button" aria-label="Right">▶</button>
+      </div>
+      <div class="cluster act">
+        <button class="ctl blast" id="padBlast" type="button" aria-label="Drop a charge">CHG</button>
+        <button class="ctl fire" id="padFire" type="button" aria-label="Beam">BEAM</button>
+      </div>
+    </div>
+    </div>
+
+    <footer class="foot">
+      <div class="tag">a FinnBots game</div>
+      <div class="links">
+        <a href="https://magiceden.io/marketplace/finnbot" target="_blank" rel="noopener">Buy a Bot</a>·
+        <a href="https://games.finnstergram.com/" target="_blank" rel="noopener">More games</a>·
+        <a href="https://hoverbot.finnstergram.com/leaderboard.html" target="_blank" rel="noopener">Leaderboard</a>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Rules overlay (auto-opens as an intro on first load) -->
+  <div class="overlay" id="rulesOverlay" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <div class="card">
+      <h2 id="rulesTitle">HOW TO PLAY</h2>
+      <ul class="rules">
+        <li><b>GOAL:</b> fly down the shaft and reach the trapped bot at the bottom. Twenty shafts, then they go round again, harder.</li>
+        <li><b>▲ / W / Up</b> runs the rotor pack, <b>◀ ▶</b> fly. The pack burns your <b>lamp</b> — that bar is your clock. Empty lamp = a life.</li>
+        <li><b>BEAM</b> (Space) fires sideways from the helmet: it kills critters and burns through stone. It cannot fire downward.</li>
+        <li><b>CHG</b> (Down / B) drops a blast charge — only while standing. 1.5 second fuse, and it will kill you too. Six per shaft.</li>
+        <li>Glowing ember walls and slag are instant death. Lamps light the dark shafts — shoot one and you fly blind.</li>
+        <li><b>SCORE:</b> critter 50 · stone tile 25 · rescue 1000, plus 10 per lamp unit left and 50 per unused charge. Extra life every 20,000.</li>
+      </ul>
+      <p class="safe">Free play never touches a wallet, never asks for a seed phrase, and never moves a Bot.</p>
+      <div class="lnks">
+        <a href="https://magiceden.io/marketplace/finnbot" target="_blank" rel="noopener">Buy a Bot</a>·
+        <a href="https://games.finnstergram.com/" target="_blank" rel="noopener">More games</a>·
+        <a href="https://hoverbot.finnstergram.com/leaderboard.html" target="_blank" rel="noopener">Leaderboard</a>
+      </div>
+      <button class="btn" id="rulesClose">Got it</button>
+    </div>
+  </div>
+
+  <!-- Game-over overlay (FREE) -->
+  <div class="overlay" id="overOverlay" role="dialog" aria-modal="true" aria-labelledby="overTitle">
+    <div class="card" id="overCard">
+      <h2 id="overTitle">RUN OVER</h2>
+      <div class="big">SCORE <span id="oScore">0</span></div>
+      <p>Time <b id="oTime">0:00</b></p>
+      <button class="btn" id="retryBtn">Tap to retry</button>
+    </div>
+  </div>
+
+  <!-- Paid overlay (start/run-over card; innerHTML written by the Paid controller) -->
+  <div class="overlay" id="paidOverlay" role="dialog" aria-modal="true"></div>
+
+  <!-- Kid-safety confirm gate (before any wallet code runs) -->
+  <div class="sheet" id="confirmSheet"><div class="panel">
+    <h2>Play HOVERBOT — Paid</h2>
+    <p>One entry = one run. Costs <b>25 OIL</b> to the treasury (a sink). Pays nothing out — you're playing for a leaderboard spot. Bot holders: score ×1.5.<br/><br/>A <b>fun ranking</b> — not verified.</p>
+    <button class="again" id="confirmEnter" type="button">Connect &amp; Pay</button>
+    <button class="ghostbtn" id="confirmBack" type="button">Cancel</button>
+  </div></div>
+
+  <!-- Score-posted sheet -->
+  <div class="sheet" id="postedSheet"><div class="panel">
+    <h2>Score posted!</h2>
+    <p id="posted-text"></p>
+    <a class="ghostbtn" id="viewLb" href="https://hoverbot.finnstergram.com/leaderboard.html" target="_blank" rel="noopener">View leaderboard →</a>
+    <button class="again" id="againBtn" type="button">Play again (25 OIL)</button>
+  </div></div>
+
+<script>
+"use strict";
+/* ==========================================================================
+   HOVERBOT — FinnBots.  ENGINE (Free gameplay).
+   H.E.R.O.-loop mine rescue: rotor-pack descent down a shaft, the headlamp is
+   the fuel clock, a helmet beam cuts stone + kills critters, blast charges open
+   floors, and a trapped bot waits at the bottom of every shaft.
+
+   CLONE FIDELITY — matched to Activision's H.E.R.O. (1984, John Van Ryzin) on
+   mechanics / scoring / feel; ALL art + names are original FinnBots.
+     · creature killed ............ 50
+     · wall tile destroyed ........ 25   (a 3-tile wall blasted = 75, per manual)
+     · rescue ..................... 1000
+     · each unused charge at rescue . 50
+     · each remaining fuel unit .... 10  (gauge grows with depth => deeper pays more,
+                                          matching "bonus value increases with depth")
+     · extra life ................. every 20,000, max 6 in reserve (7 total)
+     · start ...................... 4 lives (1 active + 3 reserve)
+     · 6 charges per shaft, refilled on death and on every new shaft
+     · charge fuse 1.5s; blasts its own tile, 2 tiles each way + the diagonals
+     · death restarts the SAME shaft from the top, full gauge, score kept
+     · 20 hand-built shafts, then they cycle harder
+     · 1,000,000 points ends the operation
+   Sources recorded in CLONE-FIDELITY-AUDIT.md.
+
+   Contract kept for the frozen chassis:
+     - export { newRun, stepGame } headless (VERIFY termination sim)
+     - export { SHAFTS, W, TILE, ... } headless (verify-shafts.js solvability gate)
+     - window.HOVERBOTEngine = { start, idle, resumeFree, state }
+     - run end -> window.HOVERBOTPaid.onRunEnd(res)
+     - no wallet / RPC / memo / money symbol in here
+   ========================================================================== */
+
+const CFG = { name:'HOVERBOT', memoNS:'HOVR', chassis:'sink-leaderboard',
+              subdomain:'hoverbot.finnstergram.com', port:9023, hero:106,
+              accent:'#f2a03d', entryOIL:25, scorePost:1 };
+
+/* ---- geometry ------------------------------------------------------------ */
+const W = 16;            // shaft width, tiles
+const VH = 20;           // viewport height, tiles
+const TILE = 14;         // px per tile
+const HUD_H = 18;        // in-canvas HUD ribbon
+const RUN = { w: W*TILE, h: VH*TILE + HUD_H };   // 224 x 298, portrait
+
+/* ---- physics (px/s) ------------------------------------------------------ */
+const WALK = 58, FLY_X = 70, RISE = 88, FALL_MAX = 150, GRAV = 340;
+const BOT_W = 10, BOT_H = 12;
+
+/* ---- the fuel clock (the headlamp) --------------------------------------- */
+const DRAIN_BASE = 1.30;     // units/s — always burning, the level clock
+const DRAIN_ROTOR = 0.95;    // units/s extra while the rotor is lifting
+const DRAIN_LASER = 2.20;    // units/s extra while the beam is on
+const CUT_SECS = 1.00;       // beam seconds to cut through one stone tile
+const CUT_DECAY = 0.55;      // how fast an unattended cut heals (x realtime)
+
+/* ---- charges ------------------------------------------------------------- */
+const CHARGES = 6, FUSE = 1.5;
+
+/* ---- extending hazards ---------------------------------------------------
+   A coil hangs DOWN from the roof of its lane; a tendril rises UP out of the slag.
+   Each reaches AT MOST ONE TILE. That is not a round number for its own sake: the bot
+   is 12px tall inside a 14px tile, so a hazard that spills even a few pixels into the
+   next row costs the player TWO rows, not one — a 2-tile coil left a single threadable
+   row in a 3-row lane and the sim died on it over and over. One tile of reach means a
+   lane always keeps two clear rows: a timing hazard you fly around, never a wall.
+   Authoring pins coils to the lane's top row and tendrils to its bottom row, and
+   verify-shafts.js enforces the invariant per marker. ------------------------- */
+const COIL_SPAN = 1.0, TENDRIL_SPAN = 1.0;
+const BLAST = [[0,0],[1,0],[2,0],[-1,0],[-2,0],[0,1],[0,2],[0,-1],[0,-2],
+               [1,1],[1,-1],[-1,1],[-1,-1]];
+
+/* ---- scoring (arcade values) --------------------------------------------- */
+const PTS_CRITTER = 50, PTS_TILE = 25, PTS_RESCUE = 1000;
+const PTS_PER_FUEL = 10, PTS_PER_CHARGE = 50;
+const EXTRA_LIFE = 20000, MAX_LIVES = 7, START_LIVES = 4, OPERATION_END = 1000000;
+
+/* ---- beam ---------------------------------------------------------------- */
+const BEAM_LEN = 34;         // px, ~2.4 tiles
+
+/* ---- tiles ---------------------------------------------------------------
+   '.' air      '=' bedrock (safe, indestructible)   '#' stone (cuttable/blastable)
+   '%' ember wall (LETHAL, indestructible)           '~' slag (LETHAL, not solid)
+   '*' lamp (lights the shaft; beam or blast kills it)
+   markers, replaced by air at load: '@' entry  'M' trapped bot
+                                     'm' mite  'b' drifter  'c' coil  'T' tendril
+   -------------------------------------------------------------------------- */
+const SOLID = { '=':1, '#':1, '%':1 };
+const LETHAL = { '%':1, '~':1 };
+
+function shaft(name, fuel, dark, body){
+  const rows = ['='.repeat(W)];
+  for(let i=0;i<body.length;i++) rows.push('=' + (body[i]+'..............').slice(0,W-2) + '=');
+  rows.push('='.repeat(W));
+  return { name:name, fuel:fuel, dark:!!dark, rows:rows };
+}
+
+/* ============================ THE 20 SHAFTS ==============================
+   Original FinnBots layouts built to the H.E.R.O. FEEL — a vertical descent
+   threaded with ledges, cut-throughs, lamps and critters, escalating to ember
+   seams, slag pools, dark drifts and tendrils. NOT the original's level data.
+   Every critical path is clearable by the CORE LOOP ALONE (fly + horizontal
+   beam cuts); charges are a shortcut and a bonus. Proven by verify-shafts.js.
+   ========================================================================= */
+const SHAFTS = [
+shaft('ENTRY ADIT', 50, false, [
+'..@...........',
+'..............',
+'..............',
+'.....*........',
+'..............',
+'###########...',
+'..............',
+'.........m....',
+'..............',
+'...###########',
+'..*...........',
+'..............',
+'..............',
+'###########...',
+'..............',
+'........b.....',
+'..............',
+'...###########',
+'..............',
+'...........*..',
+'..............',
+'###########...',
+'..............',
+'....m.........',
+'..............',
+'...###########',
+'..............',
+'......M.......']),
+
+shaft('CROSSCUT', 64, false, [
+'..@...........',
+'..............',
+'..............',
+'......*.......',
+'..............',
+'###########...',
+'.......#......',
+'.......#......',
+'.......#..m...',
+'...###########',
+'..............',
+'....b.........',
+'..............',
+'###########...',
+'...*..........',
+'..............',
+'..............',
+'...###########',
+'.....#........',
+'.....#........',
+'.....#........',
+'#########.....',
+'..............',
+'........m.....',
+'............*.',
+'...###########',
+'..............',
+'......b.......',
+'..............',
+'###########...',
+'..............',
+'.....M........']),
+
+shaft('THE DROP', 67, false, [
+'...........@..',
+'..............',
+'..............',
+'.........*....',
+'..............',
+'...###########',
+'..............',
+'...m..........',
+'..............',
+'###########...',
+'....#.........',
+'....#.........',
+'....#....b....',
+'...###########',
+'............*.',
+'..............',
+'..............',
+'###########...',
+'..............',
+'......m.......',
+'..............',
+'...###########',
+'..............',
+'..........b...',
+'..*...........',
+'#########.....',
+'.........#....',
+'.........#....',
+'.........#....',
+'...###########',
+'..............',
+'...........M..']),
+
+shaft('SWITCHBACK', 59, false, [
+'..@...........',
+'..............',
+'..............',
+'....*.........',
+'..............',
+'###########...',
+'..............',
+'........b.....',
+'..............',
+'...###########',
+'...#..........',
+'...#..........',
+'...#.......m..',
+'#####....#####',
+'.........*....',
+'..............',
+'..............',
+'###########...',
+'......c.......',
+'..............',
+'..............',
+'...###########',
+'..............',
+'....m.........',
+'..............',
+'#########.....',
+'..........#...',
+'..........#...',
+'.....*....#...',
+'...###########',
+'..............',
+'.......b......',
+'..............',
+'###########...',
+'..............',
+'....M.........']),
+
+shaft('EMBER SEAM', 69, false, [
+'...........@..',
+'..............',
+'..............',
+'........*.....',
+'..............',
+'...###########',
+'..............',
+'....m.........',
+'..............',
+'%%%%#######...',
+'......#.......',
+'......#.......',
+'......#...b...',
+'...###########',
+'..*...........',
+'..............',
+'..............',
+'...#######%%%%',
+'..............',
+'.........m....',
+'..............',
+'###########...',
+'.....c........',
+'..............',
+'..............',
+'...###########',
+'........#.....',
+'........#.....',
+'........#...*.',
+'%%%%#######...',
+'..............',
+'...b..........',
+'..............',
+'...###########',
+'..............',
+'..........M...']),
+
+shaft('SLAG POOL', 67, false, [
+'..@...........',
+'..............',
+'..............',
+'.....*........',
+'..............',
+'###########...',
+'..............',
+'.........b....',
+'..............',
+'...~~~~~~~####',
+'.....#........',
+'.....#........',
+'....m#........',
+'###########...',
+'...........*..',
+'..............',
+'..............',
+'####~~~~~~~...',
+'.......c......',
+'..............',
+'..............',
+'...###########',
+'..............',
+'............m.',
+'..............',
+'##~~~~~~~.....',
+'........#.....',
+'........#.....',
+'...*....#.....',
+'...###########',
+'..............',
+'......b.......',
+'..............',
+'###~~~..~~~###',
+'..............',
+'..........m...',
+'..............',
+'###########...',
+'..............',
+'....M.........']),
+
+shaft('THE NARROWS', 86, false, [
+'...........@..',
+'..............',
+'..............',
+'..........*...',
+'..............',
+'...###########',
+'...#..........',
+'...#..........',
+'...#...b......',
+'###########...',
+'..............',
+'..........m...',
+'..............',
+'...###########',
+'.........#....',
+'.........#....',
+'.........#....',
+'#########.....',
+'....*....c....',
+'..............',
+'..............',
+'...###########',
+'..............',
+'....m.........',
+'..............',
+'###########...',
+'......#.......',
+'......#.......',
+'......#....*..',
+'.....#########',
+'..............',
+'.....b........',
+'..............',
+'###########...',
+'..............',
+'........m.....',
+'..............',
+'...###########',
+'..............',
+'............M.']),
+
+shaft('THE GALLERY', 66, false, [
+'..@...........',
+'..............',
+'....b.........',
+'........*.....',
+'...........b..',
+'###########...',
+'..............',
+'......m.......',
+'..............',
+'...###########',
+'...b..........',
+'..............',
+'.........b....',
+'###########...',
+'....c.....*...',
+'..............',
+'..............',
+'...###########',
+'..............',
+'.......b......',
+'..............',
+'#####....#####',
+'..m...........',
+'..............',
+'............m.',
+'###########...',
+'..............',
+'......*.......',
+'..............',
+'...###########',
+'.....b........',
+'..............',
+'..........b...',
+'###########...',
+'........c.....',
+'..............',
+'..............',
+'...###########',
+'..............',
+'......M.......']),
+
+shaft('DARK DRIFT', 80, true, [
+'...........@..',
+'..............',
+'..............',
+'.........*....',
+'..............',
+'...###########',
+'..............',
+'...m..........',
+'..............',
+'###########...',
+'.....#........',
+'.....#........',
+'.....#...b....',
+'...###########',
+'..*...........',
+'..............',
+'..............',
+'###########...',
+'.......c......',
+'..............',
+'..............',
+'...###########',
+'..............',
+'..........m...',
+'..............',
+'#########.....',
+'.........#....',
+'.........#....',
+'....*....#....',
+'...###########',
+'..............',
+'......b.......',
+'..............',
+'###########...',
+'..............',
+'..........m...',
+'..............',
+'...###########',
+'..............',
+'..........M...']),
+
+shaft('COIL NEST', 71, false, [
+'..@...........',
+'..............',
+'....c.....c...',
+'........*.....',
+'..............',
+'###########...',
+'......c.......',
+'..............',
+'..............',
+'...###########',
+'...c.......c..',
+'..............',
+'..............',
+'###########...',
+'............*.',
+'.....m........',
+'..............',
+'...###########',
+'....c....c....',
+'..............',
+'..............',
+'#####....#####',
+'..............',
+'.........b....',
+'..............',
+'###########...',
+'..c.........c.',
+'.......*......',
+'..............',
+'...###########',
+'..............',
+'.........m....',
+'..............',
+'###########...',
+'.....c....c...',
+'..............',
+'..............',
+'...###########',
+'..............',
+'.....M........']),
+
+shaft('EMBER MAZE', 75, false, [
+'........@.....',
+'..............',
+'..............',
+'.........*....',
+'..............',
+'...#######%%%%',
+'....#.........',
+'....#.........',
+'....#.....m...',
+'###########...',
+'..............',
+'...b..........',
+'..............',
+'####%%..%%####',
+'..*.....c.....',
+'..............',
+'..............',
+'...###########',
+'..........#...',
+'..........#...',
+'..........#...',
+'%%%%#######...',
+'..............',
+'.....m........',
+'..............',
+'...###########',
+'..............',
+'...........b..',
+'......*.......',
+'####%%..%%####',
+'......#.......',
+'......#.......',
+'......#.......',
+'###########...',
+'....c.........',
+'..............',
+'..............',
+'...#######%%%%',
+'..............',
+'............m.',
+'..............',
+'###########...',
+'..............',
+'...M..........']),
+
+shaft('BLACK SUMP', 75, true, [
+'..@...........',
+'..............',
+'..............',
+'.....*........',
+'..............',
+'###########...',
+'..............',
+'..........b...',
+'..............',
+'...~~~~~~~####',
+'......#.......',
+'......#.......',
+'....m.#.......',
+'###########...',
+'............*.',
+'..............',
+'..............',
+'##~~~~~~~.....',
+'........c.....',
+'..............',
+'..............',
+'...###########',
+'..............',
+'....m.........',
+'..............',
+'###~~~..~~~###',
+'.........#....',
+'.........#....',
+'...*.....#....',
+'###########...',
+'..............',
+'.......b......',
+'..............',
+'...~~~~~~~####',
+'..............',
+'...........m..',
+'..............',
+'###########...',
+'..............',
+'........*.....',
+'..............',
+'...###########',
+'..............',
+'.....M........']),
+
+shaft('THE SPIRAL', 79, false, [
+'...........@..',
+'..............',
+'..............',
+'..........*...',
+'..............',
+'...###########',
+'..............',
+'...b..........',
+'..............',
+'###########...',
+'.......#......',
+'.......#......',
+'.......#..m...',
+'...###########',
+'..*......c....',
+'..............',
+'..............',
+'###########...',
+'..............',
+'......b.......',
+'..............',
+'.....#########',
+'....#.........',
+'....#.........',
+'....#.........',
+'###########...',
+'..............',
+'.........m....',
+'.......*......',
+'...###########',
+'...c..........',
+'..............',
+'..............',
+'#########.....',
+'..........#...',
+'..........#...',
+'.....b....#...',
+'...###########',
+'..............',
+'........m.....',
+'..............',
+'###########...',
+'..............',
+'............M.']),
+
+shaft('CHIMNEY RUN', 92, false, [
+'..@...........',
+'..............',
+'.....#........',
+'.....#........',
+'.....#...*....',
+'###########...',
+'..............',
+'.........m....',
+'..............',
+'...###########',
+'........#.....',
+'........#.....',
+'...b....#.....',
+'###########...',
+'............*.',
+'..............',
+'..............',
+'...###########',
+'...#......c...',
+'...#..........',
+'...#..........',
+'###########...',
+'..............',
+'.......m......',
+'..............',
+'...###########',
+'...........#..',
+'...........#..',
+'....*......#..',
+'#########.....',
+'..............',
+'.......b......',
+'..............',
+'...###########',
+'......#.......',
+'......#.......',
+'....m.#.......',
+'###########...',
+'...........c..',
+'..............',
+'..............',
+'...###########',
+'..............',
+'......M.......']),
+
+shaft('SLAGWORKS', 82, false, [
+'...........@..',
+'..............',
+'..............',
+'.........*....',
+'..............',
+'...~~~~~~~####',
+'..............',
+'....b.........',
+'..............',
+'###########...',
+'.......#......',
+'.......#......',
+'..m....#......',
+'##~~~~~~~.....',
+'...*......c...',
+'..............',
+'..............',
+'...###########',
+'..............',
+'......b.......',
+'..............',
+'###~~~..~~~###',
+'..............',
+'............m.',
+'..............',
+'###########...',
+'.....#........',
+'.....#........',
+'.....#....*...',
+'.....~~~~~~~##',
+'.......c......',
+'..............',
+'..............',
+'...###########',
+'..............',
+'....b.........',
+'..............',
+'####~~~~~~~...',
+'..............',
+'.........m....',
+'..............',
+'...###########',
+'..............',
+'....M.........']),
+
+shaft('DEEP CROSSCUT', 85, true, [
+'..@...........',
+'..............',
+'..............',
+'......*.......',
+'..............',
+'###########...',
+'....#.........',
+'....#.........',
+'....#....m....',
+'...###########',
+'..............',
+'...........b..',
+'..............',
+'###########...',
+'..*...........',
+'..............',
+'..............',
+'...###########',
+'.....c....#...',
+'..........#...',
+'..........#...',
+'#########.....',
+'..............',
+'.......m......',
+'..............',
+'...###########',
+'..............',
+'............*.',
+'..............',
+'###########...',
+'......#.......',
+'......#.......',
+'..b...#.......',
+'.....#########',
+'.........c....',
+'..............',
+'..............',
+'###########...',
+'..............',
+'....m.........',
+'........*.....',
+'...###########',
+'..............',
+'.......b......',
+'..............',
+'###########...',
+'..............',
+'...........M..']),
+
+shaft('TENDRIL REACH', 87, false, [
+'...........@..',
+'..............',
+'..............',
+'..........*...',
+'..............',
+'...###########',
+'..............',
+'..............',
+'......T.......',
+'####~~~~~~~...',
+'........#.....',
+'........#.....',
+'...m....#.....',
+'...###########',
+'..............',
+'..............',
+'.........T....',
+'.....~~~~~~~##',
+'..*...........',
+'.......b......',
+'..............',
+'###########...',
+'..............',
+'..............',
+'.....T........',
+'###~~~..~~~###',
+'.....#.....c..',
+'.....#........',
+'.....#........',
+'...###########',
+'..............',
+'..............',
+'...T..........',
+'##~~~~~~~.....',
+'..............',
+'........m.....',
+'.......*......',
+'...###########',
+'..............',
+'..............',
+'..........T...',
+'...~~~~~~~####',
+'..............',
+'....b.........',
+'..............',
+'###########...',
+'..............',
+'............M.']),
+
+shaft('THE FURNACE', 89, false, [
+'.....@........',
+'..............',
+'..............',
+'.....*........',
+'..............',
+'%%%%#######...',
+'.........#....',
+'.........#....',
+'...m.....#....',
+'...#######%%%%',
+'..............',
+'...........b..',
+'..............',
+'###########...',
+'..*....c......',
+'..............',
+'..............',
+'####%%..%%####',
+'..............',
+'..........m...',
+'..............',
+'...#######%%%%',
+'....#.........',
+'....#.........',
+'....#.........',
+'#########.....',
+'..............',
+'........b.....',
+'............*.',
+'...#######%%%%',
+'...c..........',
+'..............',
+'..............',
+'%%%%#######...',
+'...........#..',
+'...........#..',
+'......m....#..',
+'...###########',
+'..............',
+'.........b....',
+'..............',
+'####%%..%%####',
+'.....c........',
+'..............',
+'..............',
+'###########...',
+'..............',
+'....M.........']),
+
+shaft('MAGMA DRIFT', 91, true, [
+'........@.....',
+'..............',
+'..............',
+'.........*....',
+'..............',
+'...#######%%%%',
+'..............',
+'..............',
+'....T.........',
+'##~~~~~~~.....',
+'......#.......',
+'......#.......',
+'......#.m.....',
+'...###########',
+'..*...........',
+'........b.....',
+'..............',
+'%%%%#######...',
+'..............',
+'..............',
+'......T.......',
+'###~~~..~~~###',
+'..........c...',
+'..............',
+'..............',
+'###########...',
+'.........#....',
+'.........#....',
+'....*....#....',
+'...#######%%%%',
+'..............',
+'..............',
+'...........T..',
+'.....~~~~~~~##',
+'..............',
+'.....m........',
+'..............',
+'###########...',
+'..............',
+'..........b...',
+'.......*......',
+'####%%..%%####',
+'..............',
+'..............',
+'.....T........',
+'####~~~~~~~...',
+'........c.....',
+'..............',
+'..............',
+'...###########',
+'..............',
+'............M.']),
+
+shaft('THE CORE', 97, true, [
+'.....@........',
+'..............',
+'..............',
+'.....*........',
+'..............',
+'%%%%#######...',
+'..............',
+'..............',
+'.........T....',
+'...~~~~~~~####',
+'.......#......',
+'.......#......',
+'....m..#......',
+'###########...',
+'......c.....*.',
+'..............',
+'..............',
+'...#######%%%%',
+'..............',
+'..............',
+'...T..........',
+'##~~~~~~~.....',
+'..............',
+'........b.....',
+'..............',
+'...###########',
+'....#.........',
+'....#.........',
+'....#....*....',
+'####%%..%%####',
+'..............',
+'..............',
+'............T.',
+'.....~~~~~~~##',
+'..............',
+'......m.......',
+'..............',
+'###########...',
+'...........c..',
+'..............',
+'..............',
+'...#######%%%%',
+'..............',
+'..............',
+'.......T......',
+'###~~~..~~~###',
+'..........#...',
+'..........#...',
+'...*......#...',
+'###########...',
+'..............',
+'.....b........',
+'..............',
+'...#######%%%%',
+'..............',
+'.........M....'])
+];
+
+/* ========================== SHAFT LOADING ================================ */
+function loadShaft(s, n){
+  const src = SHAFTS[(n-1) % SHAFTS.length];
+  const cycle = Math.floor((n-1) / SHAFTS.length);
+  const grid = src.rows.map(r => r.split(''));
+  const H = grid.length;
+  const mobs = [], lamps = [];
+  let spawn = null, miner = null;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const c = grid[y][x];
+    if(c==='@'){ spawn={x:x,y:y}; grid[y][x]='.'; }
+    else if(c==='M'){ miner={x:x,y:y}; grid[y][x]='.'; }
+    else if(c==='m'){ mobs.push(mob('mite',x,y)); grid[y][x]='.'; }
+    else if(c==='b'){ mobs.push(mob('drifter',x,y)); grid[y][x]='.'; }
+    else if(c==='c'){ mobs.push(mob('coil',x,y)); grid[y][x]='.'; }
+    else if(c==='T'){ mobs.push(mob('tendril',x,y)); grid[y][x]='.'; }
+    else if(c==='*'){ lamps.push({tx:x,ty:y}); }
+  }
+  if(!spawn) spawn = {x:2,y:1};
+  if(!miner) miner = {x:W-3,y:H-2};
+  const speedUp = 1 + 0.12*cycle + 0.020*Math.min(19,(n-1)%SHAFTS.length);
+  for(const m of mobs) m.spd *= speedUp;
+  s.H = H; s.grid = grid; s.mobs = mobs; s.lamps = lamps; s.dark = src.dark;
+  s.shaftName = src.name;
+  /* The lamp gauge is EXACTLY what the shaft declares, on every lap. It used to be
+     clamped (Math.max(60,...)) and shrunk 5% per lap — both wrong: the clamp meant
+     verify-shafts.js was proving a budget the engine never used, and the shrink made
+     the tighter shafts arithmetically unclearable from lap 2 onward. Laps get harder
+     through faster critters (speedUp above), never through a budget the gate can't
+     see. verify-shafts.js now asserts this value against the declared one. */
+  s.fuelMax = src.fuel;
+  s.fuel = s.fuelMax;
+  s.charges = CHARGES;
+  s.miner = { x:miner.x*TILE + TILE/2, y:miner.y*TILE + TILE, tx:miner.x, ty:miner.y };
+  s.bx = spawn.x*TILE + (TILE-BOT_W)/2;
+  s.by = spawn.y*TILE + (TILE-BOT_H)/2;
+  s.vx = 0; s.vy = 0; s.face = 1; s.onGround = false;
+  s.rotor = false; s.beamOn = false; s.cut = null;
+  s.bombs = []; s.cuts = {}; s.flash = 0; s.camY = 0; s.tiles = 0;
+}
+
+function mob(type,x,y){
+  const m = { type:type, tx:x, ty:y, alive:true, t:((x*7+y*13)%17)/17*3, dir: (x%2)?1:-1 };
+  if(type==='mite'){ m.x=x*TILE+2; m.y=y*TILE+3; m.w=10; m.h=9; m.spd=26; m.vy=0; }
+  else if(type==='drifter'){ m.x=x*TILE+1; m.y=y*TILE+2; m.w=12; m.h=10; m.spd=36; m.by0=y*TILE+2; }
+  else if(type==='coil'){ m.x=x*TILE+3; m.y=y*TILE; m.w=8; m.h=TILE; m.spd=1.0; m.len=0; m.maxLen=COIL_SPAN-0.6; }
+  else { m.x=x*TILE+3; m.y=y*TILE; m.w=8; m.h=TILE; m.spd=0.75; m.len=0; m.maxLen=TENDRIL_SPAN-0.4; }
+  return m;
+}
+
+/* ============================== THE RUN ================================== */
+function newRun(){
+  const s = { phase:'play', score:0, lives:START_LIVES, rescues:0, shaft:1,
+              timeMs:0, nextLife:EXTRA_LIFE, won:false,
+              dieT:0, clearT:0, tally:null, shake:0,
+              inL:false, inR:false, inUp:false, inFire:false, inBlast:false,
+              _blastLatch:false, ev:null };
+  loadShaft(s, 1);
+  return s;
+}
+
+function cell(s,tx,ty){ if(tx<0||ty<0||tx>=W||ty>=s.H) return '='; return s.grid[ty][tx]; }
+function solidAt(s,tx,ty){ return !!SOLID[cell(s,tx,ty)]; }
+
+function boxTiles(x,y,w,h){
+  return { x0:Math.floor(x/TILE), x1:Math.floor((x+w-1)/TILE),
+           y0:Math.floor(y/TILE), y1:Math.floor((y+h-1)/TILE) };
+}
+function hitsSolid(s,x,y,w,h){
+  const t = boxTiles(x,y,w,h);
+  for(let ty=t.y0;ty<=t.y1;ty++) for(let tx=t.x0;tx<=t.x1;tx++) if(solidAt(s,tx,ty)) return true;
+  return false;
+}
+function hitsLethal(s,x,y,w,h){
+  const t = boxTiles(x,y,w,h);
+  for(let ty=t.y0;ty<=t.y1;ty++) for(let tx=t.x0;tx<=t.x1;tx++) if(LETHAL[cell(s,tx,ty)]) return true;
+  return false;
+}
+function overlap(a,b){ return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y; }
+
+function addScore(s,n){
+  s.score += n;
+  while(s.score >= s.nextLife){ s.nextLife += EXTRA_LIFE; if(s.lives<MAX_LIVES){ s.lives++; s.ev.life=true; } }
+}
+function killTile(s,tx,ty){
+  const c = cell(s,tx,ty);
+  if(c==='#'){ s.grid[ty][tx]='.'; s.tiles++; addScore(s,PTS_TILE); return true; }
+  if(c==='*'){ s.grid[ty][tx]='.'; for(let i=0;i<s.lamps.length;i++) if(s.lamps[i].tx===tx&&s.lamps[i].ty===ty){ s.lamps.splice(i,1); break; } s.ev.lamp=true; return true; }
+  return false;
+}
+function die(s){
+  if(s.phase!=='play') return;
+  s.phase='die'; s.dieT=0; s.lives--; s.shake=0.45; s.ev.die=true;
+  s.beamOn=false; s.cut=null;
+}
+
+/* ------------------------------- STEP ------------------------------------ */
+function stepGame(s, dtMs){
+  const ev = {}; s.ev = ev;
+  const dt = Math.min(0.05, dtMs/1000);
+  if(s.phase==='dead'){ return ev; }
+  s.timeMs += dtMs;
+  if(s.shake>0) s.shake = Math.max(0, s.shake - dt);
+
+  if(s.phase==='die'){
+    s.dieT += dt;
+    if(s.dieT >= 1.15){
+      if(s.lives > 0){ loadShaft(s, s.shaft); s.phase='play'; }
+      else { s.phase='dead'; ev.over=true; }
+    }
+    return ev;
+  }
+  if(s.phase==='clear'){
+    s.clearT += dt;
+    if(s.clearT >= 2.4){
+      if(s.score >= OPERATION_END){ s.won=true; s.phase='dead'; ev.over=true; return ev; }
+      s.shaft++; loadShaft(s, s.shaft); s.phase='play'; ev.newShaft=true;
+    }
+    return ev;
+  }
+
+  /* ---- fuel: the headlamp burns from the moment the shaft opens ---------- */
+  let drain = DRAIN_BASE;
+  if(s.inUp) drain += DRAIN_ROTOR;
+  if(s.inFire) drain += DRAIN_LASER;
+  s.fuel -= drain*dt;
+  if(s.fuel <= 0){ s.fuel = 0; die(s); return ev; }
+
+  /* ---- horizontal ------------------------------------------------------- */
+  const spd = s.onGround ? WALK : FLY_X;
+  s.vx = (s.inL && !s.inR) ? -spd : (s.inR && !s.inL) ? spd : 0;
+  if(s.vx < 0) s.face = -1; else if(s.vx > 0) s.face = 1;
+  if(s.vx !== 0){
+    let nx = s.bx + s.vx*dt;
+    if(hitsSolid(s, nx, s.by, BOT_W, BOT_H)){
+      nx = s.vx>0 ? (Math.floor((s.bx+BOT_W)/TILE)+1)*TILE - BOT_W - 0.01
+                  : Math.floor(s.bx/TILE)*TILE + TILE + 0.01;
+      if(hitsSolid(s, nx, s.by, BOT_W, BOT_H)) nx = s.bx;
+    }
+    s.bx = Math.max(0, Math.min(W*TILE-BOT_W, nx));
+  }
+
+  /* ---- rotor / gravity -------------------------------------------------- */
+  s.rotor = !!s.inUp;
+  if(s.rotor){ s.vy += (-RISE - s.vy) * Math.min(1, dt*12); }
+  else { s.vy = Math.min(FALL_MAX, s.vy + GRAV*dt); }
+  let ny = s.by + s.vy*dt;
+  s.onGround = false;
+  if(hitsSolid(s, s.bx, ny, BOT_W, BOT_H)){
+    if(s.vy > 0){ ny = Math.floor((s.by+BOT_H)/TILE)*TILE + TILE - BOT_H - 0.01;
+                  for(let g=0; g<TILE*3 && hitsSolid(s, s.bx, ny, BOT_W, BOT_H); g++) ny -= 1;
+                  s.onGround = true; }
+    else { ny = Math.floor(s.by/TILE)*TILE + TILE + 0.01;
+           for(let g=0; g<TILE*3 && hitsSolid(s, s.bx, ny, BOT_W, BOT_H); g++) ny += 1; }
+    s.vy = 0;
+  }
+  s.by = Math.max(0, Math.min(s.H*TILE-BOT_H, ny));
+  if(s.by >= s.H*TILE-BOT_H-0.5) s.onGround = true;
+
+  /* ---- lethal terrain --------------------------------------------------- */
+  if(hitsLethal(s, s.bx+1, s.by+1, BOT_W-2, BOT_H-2)){ die(s); return ev; }
+
+  /* ---- beam -------------------------------------------------------------
+     Cut progress lives PER TILE in s.cuts and DECAYS when the beam wanders off,
+     instead of resetting the instant it does. A hovering bot bobs a pixel or two
+     and the beam row flicks between two tiles; with a hard reset a one-second cut
+     could never finish while airborne (the greedy pilot stalled at the first
+     full-lane pillar on twelve shafts). Decay keeps it honest — leave the wall and
+     it heals — while a wobbly hover, or a thumb on a phone, still gets through. -- */
+  s.beamOn = !!s.inFire;
+  const active = {};
+  if(s.beamOn){
+    const by = s.by + BOT_H/2 - 2, bh = 4;
+    const bx = s.face>0 ? s.bx+BOT_W : s.bx-BEAM_LEN;
+    let reach = BEAM_LEN;
+    const ty = Math.floor((by+bh/2)/TILE);
+    const startTx = Math.floor((s.face>0 ? s.bx+BOT_W : s.bx-1)/TILE);
+    let hitTx = -1;
+    for(let i=0;i<4;i++){
+      const tx = startTx + s.face*i;
+      if(tx<0||tx>=W){ hitTx=tx; break; }
+      if(cell(s,tx,ty)==='*'){ killTile(s,tx,ty); continue; }
+      if(SOLID[cell(s,tx,ty)]){ hitTx = tx; break; }
+    }
+    if(hitTx>=0 && hitTx<W){
+      reach = s.face>0 ? Math.max(0, hitTx*TILE - (s.bx+BOT_W))
+                       : Math.max(0, s.bx - (hitTx*TILE+TILE));
+      const c = cell(s,hitTx,ty);
+      if(c==='#'){
+        const k = hitTx+','+ty;
+        s.cuts[k] = (s.cuts[k]||0) + dt;
+        active[k] = 1;
+        s.cut = { tx:hitTx, ty:ty, t:s.cuts[k] };
+        if(s.cuts[k] >= CUT_SECS){ killTile(s,hitTx,ty); delete s.cuts[k]; s.cut=null; ev.cut=true; }
+      } else s.cut = null;
+    } else { reach = BEAM_LEN; s.cut = null; }
+    s.beam = { x: s.face>0 ? s.bx+BOT_W : s.bx-reach, y:by, w:reach, h:bh };
+    for(const m of s.mobs){
+      if(!m.alive || m.type==='tendril') continue;
+      if(overlap(s.beam, mobBox(m))){ m.alive=false; addScore(s,PTS_CRITTER); ev.kill=true; }
+    }
+  } else { s.beam = null; s.cut = null; }
+  for(const k in s.cuts){ if(!active[k]){ s.cuts[k] -= dt*CUT_DECAY; if(s.cuts[k] <= 0) delete s.cuts[k]; } }
+
+  /* ---- charges ---------------------------------------------------------- */
+  if(s.inBlast && !s._blastLatch){
+    s._blastLatch = true;
+    if(s.onGround && s.charges > 0){
+      const tx = Math.floor((s.bx+BOT_W/2)/TILE), ty = Math.floor((s.by+BOT_H-1)/TILE);
+      s.charges--; s.bombs.push({tx:tx, ty:ty, t:0}); ev.drop=true;
+    }
+  }
+  if(!s.inBlast) s._blastLatch = false;
+  for(let i=s.bombs.length-1;i>=0;i--){
+    const b = s.bombs[i]; b.t += dt;
+    if(b.t >= FUSE){
+      s.bombs.splice(i,1); s.shake=0.35; ev.boom=true;
+      const box = { x:(b.tx-2)*TILE, y:(b.ty-2)*TILE, w:5*TILE, h:5*TILE };
+      for(const o of BLAST) killTile(s, b.tx+o[0], b.ty+o[1]);
+      for(const m of s.mobs){
+        if(!m.alive || m.type==='tendril') continue;
+        const mb = mobBox(m);
+        for(const o of BLAST){ const cx=(b.tx+o[0])*TILE, cy=(b.ty+o[1])*TILE;
+          if(mb.x < cx+TILE && mb.x+mb.w > cx && mb.y < cy+TILE && mb.y+mb.h > cy){ m.alive=false; addScore(s,PTS_CRITTER); break; } }
+      }
+      for(const o of BLAST){ const cx=(b.tx+o[0])*TILE, cy=(b.ty+o[1])*TILE;
+        if(s.bx < cx+TILE && s.bx+BOT_W > cx && s.by < cy+TILE && s.by+BOT_H > cy){ die(s); return ev; } }
+    }
+  }
+
+  /* ---- critters --------------------------------------------------------- */
+  const bot = { x:s.bx, y:s.by, w:BOT_W, h:BOT_H };
+  for(const m of s.mobs){
+    if(!m.alive) continue;
+    m.t += dt;
+    if(m.type==='mite'){
+      m.vy = Math.min(FALL_MAX, m.vy + GRAV*dt);
+      let my = m.y + m.vy*dt;
+      if(hitsSolid(s, m.x, my, m.w, m.h)){ my = Math.floor((m.y+m.h)/TILE)*TILE + TILE - m.h - 0.01;
+        for(let g=0; g<TILE*3 && hitsSolid(s, m.x, my, m.w, m.h); g++) my -= 1; m.vy = 0; }
+      m.y = my;
+      const nx = m.x + m.dir*m.spd*dt;
+      const footTx = Math.floor((nx + (m.dir>0? m.w : 0))/TILE), footTy = Math.floor((m.y+m.h+1)/TILE);
+      if(hitsSolid(s, nx, m.y, m.w, m.h) || (m.vy===0 && !solidAt(s,footTx,footTy)) || nx<1 || nx>W*TILE-m.w-1) m.dir = -m.dir;
+      else m.x = nx;
+    } else if(m.type==='drifter'){
+      const nx = m.x + m.dir*m.spd*dt;
+      if(hitsSolid(s, nx, m.y, m.w, m.h) || nx<1 || nx>W*TILE-m.w-1) m.dir = -m.dir; else m.x = nx;
+      const ny2 = m.by0 + Math.sin(m.t*2.1)*7;
+      if(!hitsSolid(s, m.x, ny2, m.w, m.h)) m.y = ny2;
+    } else {  /* coil + tendril: extend and retract from their anchor */
+      const cyc = (Math.sin(m.t*m.spd) + 1) / 2;
+      m.len = cyc * m.maxLen;
+      if(m.type==='coil'){ m.h = TILE*(0.6 + m.len); }
+      else { m.h = TILE*(0.4 + m.len); m.y = m.ty*TILE + TILE - m.h; }
+    }
+    if(overlap(bot, mobBox(m))){ die(s); return ev; }
+  }
+
+  /* ---- rescue ----------------------------------------------------------- */
+  const mn = { x:s.miner.tx*TILE+1, y:s.miner.ty*TILE+1, w:TILE-2, h:TILE-1 };
+  if(overlap(bot, mn)){
+    const fuelLeft = Math.floor(s.fuel);
+    const fb = fuelLeft*PTS_PER_FUEL, cb = s.charges*PTS_PER_CHARGE;
+    addScore(s, PTS_RESCUE); addScore(s, fb); addScore(s, cb);
+    s.rescues++; s.phase='clear'; s.clearT=0; ev.rescue=true;
+    s.tally = { rescue:PTS_RESCUE, fuel:fuelLeft, fuelPts:fb, charges:s.charges, chargePts:cb };
+  }
+  return ev;
+}
+
+function mobBox(m){
+  if(m.type==='coil') return { x:m.x, y:m.ty*TILE, w:m.w, h:m.h };
+  if(m.type==='tendril') return { x:m.x, y:m.y, w:m.w, h:m.h };
+  return { x:m.x, y:m.y, w:m.w, h:m.h };
+}
+
+/* ---- headless export (VERIFY termination + verify-shafts solvability) ---- */
+const HEADLESS = (typeof document === 'undefined');
+if(HEADLESS){ module.exports = {
+  CFG, RUN, newRun, stepGame, SHAFTS, W, VH, TILE, HUD_H, SOLID, LETHAL,
+  WALK, FLY_X, RISE, FALL_MAX, GRAV, DRAIN_BASE, DRAIN_ROTOR, DRAIN_LASER,
+  CUT_SECS, CUT_DECAY, CHARGES, FUSE, BLAST, BEAM_LEN, BOT_W, BOT_H, COIL_SPAN, TENDRIL_SPAN,
+  PTS_CRITTER, PTS_TILE, PTS_RESCUE, PTS_PER_FUEL, PTS_PER_CHARGE,
+  EXTRA_LIFE, MAX_LIVES, START_LIVES, OPERATION_END, loadShaft, cell, solidAt
+}; }
+
+/* ======================= DOM / RENDER / INPUT (browser) =================== */
+if(!HEADLESS){
+(function(){
+  const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+  cv.width=RUN.w; cv.height=RUN.h; ctx.imageSmoothingEnabled=false;
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let s=newRun(), active=true, prevPhase='play';
+
+  const hero=new Image(); let heroOk=false;
+  hero.onload=function(){ heroOk=true; }; hero.src='assets/hero/bot-106.png';
+
+  const shadow=document.createElement('canvas'); shadow.width=RUN.w; shadow.height=RUN.h;
+  const sctx=shadow.getContext('2d');
+
+  document.body.classList.add((RUN.w/RUN.h) < 1 ? 'is-portrait' : 'is-landscape');
+  function fitCanvas(){ const box=cv.parentElement.getBoundingClientRect();
+    const ar=RUN.w/RUN.h; let w=box.width, h=w/ar; if(h>box.height){ h=box.height; w=h*ar; }
+    cv.style.width=Math.max(80,Math.floor(w))+'px'; cv.style.height=Math.max(44,Math.floor(h))+'px'; }
+  addEventListener('resize',fitCanvas); fitCanvas(); setTimeout(fitCanvas,120);
+
+  /* ---- audio ---- */
+  let ac=null;
+  function tone(f,d,type,vol){ if(reduce)return; try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(),g=ac.createGain(); o.type=type||'square'; o.connect(g); g.connect(ac.destination);
+    o.frequency.value=f; g.gain.value=vol||0.035; o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+d); o.stop(ac.currentTime+d+0.02);}catch(e){} }
+  function noise(d,vol){ if(reduce)return; try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const n=Math.floor(ac.sampleRate*d), buf=ac.createBuffer(1,n,ac.sampleRate), ch=buf.getChannelData(0);
+    for(let i=0;i<n;i++) ch[i]=(Math.random()*2-1)*(1-i/n);
+    const src=ac.createBufferSource(), g=ac.createGain(); src.buffer=buf; g.gain.value=vol||0.09;
+    src.connect(g); g.connect(ac.destination); src.start(); }catch(e){} }
+  let muted=false, beamHum=0;
+
+  /* ---- overlays ---- */
+  const rulesO=document.getElementById('rulesOverlay'), overO=document.getElementById('overOverlay'),
+        paidO=document.getElementById('paidOverlay'), infoBtn=document.getElementById('infoBtn');
+  function openRules(){ rulesO.classList.add('show'); document.getElementById('rulesClose').focus(); }
+  function closeRules(){ rulesO.classList.remove('show'); infoBtn.focus(); }
+  infoBtn.onclick=openRules; document.getElementById('rulesClose').onclick=closeRules;
+  rulesO.addEventListener('click',e=>{ if(e.target===rulesO) closeRules(); });
+  function restart(){ s=newRun(); active=true; prevPhase='play'; overO.classList.remove('show'); paidO.classList.remove('show'); }
+  document.getElementById('restartBtn').onclick=restart;
+  function pad(n,w){ return String(n).padStart(w,'0'); }
+  function mmss(ms){ const t=Math.floor(ms/1000); return Math.floor(t/60)+':'+pad(t%60,2); }
+  function showOver(){ document.getElementById('oScore').textContent=String(s.score);
+    document.getElementById('oTime').textContent=mmss(s.timeMs);
+    document.getElementById('overTitle').textContent = s.won ? 'OPERATION COMPLETE' : 'RESCUE OVER';
+    overO.classList.add('show'); document.getElementById('retryBtn').focus(); }
+  document.getElementById('retryBtn').onclick=restart;
+
+  /* ---- hidden chassis HUD (we draw our own ribbon in-canvas) ---- */
+  const elScore=document.getElementById('score'), elStat1=document.getElementById('stat1'), elLives=document.getElementById('lives');
+  let livesShown=-1;
+  function syncHUD(){ elScore.textContent=pad(s.score,6); elStat1.textContent=String(s.shaft);
+    if(s.lives!==livesShown){ livesShown=s.lives; elLives.innerHTML='';
+      for(let i=0;i<Math.min(s.lives,8);i++){ const d=document.createElement('span'); d.className='life'; elLives.appendChild(d);} } }
+
+  /* ========================= RENDER ===================================== */
+  const PAL = [
+    { rock:'#5f4c57', rockHi:'#7b6470', rockLo:'#3e323a', bg0:'#2a1f28', bg1:'#150f14' },
+    { rock:'#57505f', rockHi:'#71697b', rockLo:'#38333e', bg0:'#241f2c', bg1:'#120f16' },
+    { rock:'#63505a', rockHi:'#806874', rockLo:'#40333a', bg0:'#2e1e22', bg1:'#170e11' }
+  ];
+  function pal(){ return PAL[(s.shaft-1)%PAL.length]; }
+
+  function drawBack(p){
+    const g=ctx.createLinearGradient(0,HUD_H,0,RUN.h);
+    g.addColorStop(0,p.bg0); g.addColorStop(1,p.bg1);
+    ctx.fillStyle=g; ctx.fillRect(0,HUD_H,RUN.w,RUN.h-HUD_H);
+    // strata: the rock the shaft is bored through, parallaxed against the descent
+    const off=-(s.camY*0.30)%26;
+    for(let y=HUD_H+off;y<RUN.h;y+=26){
+      ctx.fillStyle='rgba(255,255,255,.030)'; ctx.fillRect(0,y,RUN.w,1);
+      ctx.fillStyle='rgba(0,0,0,.20)'; ctx.fillRect(0,y+1,RUN.w,2);
+    }
+    // grit speckle, stable against the world so it reads as rock, not noise
+    const base=Math.floor(s.camY/7)*7;
+    for(let i=0;i<46;i++){
+      const h=(i*2654435761 + base*40503)>>>0;
+      const x=h%RUN.w, y=HUD_H+((h>>>9)%(RUN.h-HUD_H));
+      ctx.fillStyle = (h&1)?'rgba(255,220,180,.045)':'rgba(0,0,0,.30)';
+      ctx.fillRect(x,y,1,1);
+    }
+    // vignette: the shaft closes in at the edges
+    const v=ctx.createRadialGradient(RUN.w/2,(RUN.h+HUD_H)/2,RUN.w*0.30,RUN.w/2,(RUN.h+HUD_H)/2,RUN.w*0.95);
+    v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(1,'rgba(0,0,0,.46)');
+    ctx.fillStyle=v; ctx.fillRect(0,HUD_H,RUN.w,RUN.h-HUD_H);
+  }
+
+  function tileRock(x,y,p,ember){
+    if(ember){
+      const f=0.5+0.5*Math.sin(s.timeMs/170 + x*0.4 + y*0.7);
+      ctx.fillStyle='#7a1f14'; ctx.fillRect(x,y,TILE,TILE);
+      ctx.fillStyle='rgb('+Math.round(206+30*f)+','+Math.round(70+40*f)+',26)'; ctx.fillRect(x+1,y+1,TILE-2,TILE-2);
+      ctx.fillStyle='rgba(255,226,140,'+(0.35+0.35*f)+')'; ctx.fillRect(x+3,y+3,TILE-7,3);
+      ctx.fillStyle='rgba(90,16,10,.55)'; ctx.fillRect(x+2,y+TILE-4,TILE-5,2);
+      return;
+    }
+    ctx.fillStyle=p.rockLo; ctx.fillRect(x,y,TILE,TILE);
+    ctx.fillStyle=p.rock; ctx.fillRect(x+1,y+1,TILE-2,TILE-2);
+    ctx.fillStyle=p.rockHi; ctx.fillRect(x+1,y+1,TILE-2,2); ctx.fillRect(x+1,y+1,2,TILE-3);
+    ctx.fillStyle='rgba(0,0,0,.20)'; ctx.fillRect(x+2,y+TILE-3,TILE-3,2);
+  }
+  function tileBed(x,y,tx,ty){
+    ctx.fillStyle='#1d161c'; ctx.fillRect(x,y,TILE,TILE);
+    ctx.fillStyle='#2b222a'; ctx.fillRect(x+1,y,TILE-2,TILE);
+    // a jagged inner face, stable per tile, so the shaft wall reads as cut rock
+    const n=((tx*73856093)^(ty*19349663))>>>0;
+    ctx.fillStyle='#3a2f39';
+    ctx.fillRect(x+1+(n&1), y+2+((n>>>2)&3), 3, 2);
+    ctx.fillRect(x+TILE-5-((n>>>4)&1), y+7+((n>>>6)&3), 3, 2);
+    ctx.fillStyle='#151014';
+    ctx.fillRect(x+3+((n>>>8)&3), y+TILE-4, 4, 2);
+  }
+
+  function tileSlag(x,y){
+    const f=0.5+0.5*Math.sin(s.timeMs/220 + x*0.5);
+    ctx.fillStyle='#4a0f08'; ctx.fillRect(x,y,TILE,TILE);
+    const g=ctx.createLinearGradient(0,y,0,y+TILE);
+    g.addColorStop(0,'rgb('+Math.round(250)+','+Math.round(150+60*f)+',60)');
+    g.addColorStop(1,'#b8300f'); ctx.fillStyle=g; ctx.fillRect(x,y+2,TILE,TILE-2);
+    ctx.fillStyle='rgba(255,240,180,'+(0.3+0.4*f)+')';
+    ctx.fillRect(x+((Math.floor(s.timeMs/120)+x)%3)*4+1, y+2, 3, 2);
+  }
+  function tileLamp(x,y){
+    // A LAMP-BOT: it hovers in the shaft and lights it. The glow is small and warm —
+    // an early build drew a 14px halo and every lamp read as a giant gold coin.
+    const bob=Math.sin(s.timeMs/420 + x)*1.2;
+    const cy0=y+6+bob;
+    ctx.fillStyle='rgba(255,208,130,.07)';
+    ctx.beginPath(); ctx.arc(x+7,cy0+1,8,0,7); ctx.fill();
+    ctx.fillStyle='rgba(180,200,255,.30)'; ctx.fillRect(x+3,cy0-5,8,1);
+    ctx.fillStyle='#1b151a'; ctx.fillRect(x+3,cy0-4,8,8);
+    ctx.fillStyle='#4a3c46'; ctx.fillRect(x+4,cy0-3,6,6);
+    ctx.fillStyle='#ffd77a'; ctx.fillRect(x+5,cy0-2,4,4);
+    ctx.fillStyle='#fff3cf'; ctx.fillRect(x+6,cy0-1,2,2);
+    ctx.fillStyle='rgba(255,208,130,.14)';
+    ctx.beginPath(); ctx.moveTo(x+4,cy0+4); ctx.lineTo(x+10,cy0+4);
+    ctx.lineTo(x+13,cy0+13); ctx.lineTo(x+1,cy0+13); ctx.closePath(); ctx.fill();
+  }
+
+  function drawCut(){
+    if(!s.cut) return;
+    const x=s.cut.tx*TILE, y=s.cut.ty*TILE - s.camY + HUD_H;
+    const k=s.cut.t/CUT_SECS;
+    ctx.fillStyle='rgba(255,230,150,'+(0.25+0.55*k)+')';
+    ctx.fillRect(x+2,y+2,(TILE-4)*k,TILE-4);
+  }
+
+  function drawMob(m){
+    const y=m.y - s.camY + HUD_H, x=m.x;
+    if(m.type==='mite'){
+      ctx.fillStyle='#10333a'; ctx.fillRect(x-1,y-1,m.w+2,m.h+2);
+      ctx.fillStyle='#2f9c9c'; ctx.fillRect(x,y,m.w,m.h);
+      ctx.fillStyle='#63d6cf'; ctx.fillRect(x+1,y+1,m.w-2,3);
+      ctx.fillStyle='#0c2429'; ctx.fillRect(x+2,y+4,2,2); ctx.fillRect(x+m.w-4,y+4,2,2);
+      const wob=Math.sin(m.t*14)>0?1:0;
+      ctx.fillStyle='#1d6f73';
+      ctx.fillRect(x, y+m.h, 2, 2+wob); ctx.fillRect(x+m.w-2, y+m.h, 2, 3-wob);
+      ctx.fillRect(x+4, y+m.h, 2, 2+wob);
+    } else if(m.type==='drifter'){
+      const f=Math.sin(m.t*15);
+      ctx.fillStyle='#3a1030';
+      ctx.fillRect(x-3, y+2+f*2, 4, 4); ctx.fillRect(x+m.w-1, y+2-f*2, 4, 4);
+      ctx.fillStyle='#b3489a'; ctx.fillRect(x-2, y+3+f*2, 3, 2); ctx.fillRect(x+m.w-1, y+3-f*2, 3, 2);
+      ctx.fillStyle='#2a0c23'; ctx.fillRect(x-1,y-1,m.w+2,m.h+2);
+      ctx.fillStyle='#8e3ba0'; ctx.fillRect(x,y,m.w,m.h);
+      ctx.fillStyle='#c76fd6'; ctx.fillRect(x+1,y+1,m.w-2,3);
+      ctx.fillStyle='#ffe9a8'; ctx.fillRect(x+2,y+5,2,2); ctx.fillRect(x+m.w-4,y+5,2,2);
+    } else if(m.type==='coil'){
+      const top=m.ty*TILE - s.camY + HUD_H, h=m.h;
+      ctx.fillStyle='#2a2030'; ctx.fillRect(x-1,top,m.w+2,h);
+      for(let i=0;i<h;i+=4){
+        ctx.fillStyle = (i%8===0)?'#7ea23a':'#4f6b26';
+        ctx.fillRect(x, top+i, m.w, 3);
+      }
+      ctx.fillStyle='#1a2010'; ctx.fillRect(x-1,top+h-6,m.w+2,6);
+      ctx.fillStyle='#9fd14a'; ctx.fillRect(x,top+h-5,m.w,4);
+      ctx.fillStyle='#ff5a3c'; ctx.fillRect(x+1,top+h-4,2,2); ctx.fillRect(x+m.w-3,top+h-4,2,2);
+    } else {
+      const top=m.y - s.camY + HUD_H, h=m.h;
+      ctx.fillStyle='#3a0f06'; ctx.fillRect(x-1,top,m.w+2,h);
+      const g=ctx.createLinearGradient(0,top,0,top+h);
+      g.addColorStop(0,'#ffb347'); g.addColorStop(1,'#c3300c');
+      ctx.fillStyle=g; ctx.fillRect(x,top,m.w,h);
+      ctx.fillStyle='rgba(255,240,180,.5)'; ctx.fillRect(x+2,top+1,2,Math.max(2,h-6));
+      ctx.fillStyle='#2a0a04'; ctx.fillRect(x+1,top+2,2,2); ctx.fillRect(x+m.w-3,top+2,2,2);
+    }
+  }
+
+  function drawMiner(){
+    const x=s.miner.tx*TILE, y=s.miner.ty*TILE - s.camY + HUD_H;
+    const bob=Math.sin(s.timeMs/260)*1.5;
+    ctx.fillStyle='#23303e'; ctx.fillRect(x+1,y+2+bob,12,11);
+    ctx.fillStyle='#3a6ff7'; ctx.fillRect(x+2,y+3+bob,10,9);
+    ctx.fillStyle='#6f97ff'; ctx.fillRect(x+3,y+4+bob,8,3);
+    ctx.fillStyle='#0f1826'; ctx.fillRect(x+3,y+7+bob,8,4);
+    ctx.fillStyle='#ffe9a8'; ctx.fillRect(x+4,y+8+bob,2,2); ctx.fillRect(x+8,y+8+bob,2,2);
+    ctx.fillStyle='#f2a03d'; ctx.fillRect(x+2,y+1+bob,10,2);
+    if(Math.floor(s.timeMs/340)%2===0){
+      ctx.fillStyle='#ffd77a'; ctx.font='7px monospace'; ctx.textAlign='center';
+      ctx.fillText('SOS', x+7, y-2+bob); ctx.textAlign='left';
+    }
+  }
+
+  function drawHero(){
+    const x=Math.round(s.bx), y=Math.round(s.by - s.camY + HUD_H);
+    if(s.phase==='die'){
+      const k=s.dieT/1.15;
+      ctx.globalAlpha = (Math.floor(s.dieT*14)%2)?0.25:0.9;
+      ctx.fillStyle='#ffd77a';
+      for(let i=0;i<7;i++){ const a=i*0.9+k*6, r=k*18;
+        ctx.fillRect(x+5+Math.cos(a)*r, y+6+Math.sin(a)*r, 2,2); }
+      ctx.globalAlpha=1; return;
+    }
+    if(s.rotor && !reduce){
+      ctx.fillStyle='rgba(180,200,255,'+(0.35+0.25*Math.sin(s.timeMs/30))+')';
+      ctx.fillRect(x-4, y-4, BOT_W+8, 2);
+      ctx.fillStyle='rgba(140,170,255,.25)'; ctx.fillRect(x-2, y-6, BOT_W+4, 2);
+    }
+    ctx.fillStyle='#2a2028'; ctx.fillRect(x+1,y-3,BOT_W-2,3);
+    ctx.fillStyle='#f2a03d'; ctx.fillRect(x+2,y-2,BOT_W-4,2);
+    if(heroOk) ctx.drawImage(hero, x-1, y, BOT_W+2, BOT_H);
+    else { ctx.fillStyle='#3e323a'; ctx.fillRect(x,y,BOT_W,BOT_H);
+           ctx.fillStyle='#f2a03d'; ctx.fillRect(x+1,y+2,BOT_W-2,5); }
+    const lx = s.face>0 ? x+BOT_W-2 : x;
+    ctx.fillStyle='#ffe9a8'; ctx.fillRect(lx,y+3,2,2);
+    if(!s.dark){ ctx.fillStyle='rgba(255,230,150,.10)';
+      ctx.beginPath(); ctx.moveTo(lx+(s.face>0?2:0), y+4);
+      ctx.lineTo(lx+s.face*26, y-4); ctx.lineTo(lx+s.face*26, y+12); ctx.closePath(); ctx.fill(); }
+  }
+
+  function drawBeam(){
+    if(!s.beam || s.beam.w<=0) return;
+    const y=s.beam.y - s.camY + HUD_H;
+    ctx.fillStyle='rgba(255,90,60,.30)'; ctx.fillRect(s.beam.x, y-2, s.beam.w, s.beam.h+4);
+    ctx.fillStyle='#ff6a3c'; ctx.fillRect(s.beam.x, y, s.beam.w, s.beam.h);
+    ctx.fillStyle='#fff0c8'; ctx.fillRect(s.beam.x, y+1, s.beam.w, 2);
+  }
+
+  function drawBombs(){
+    for(const b of s.bombs){
+      const x=b.tx*TILE, y=b.ty*TILE - s.camY + HUD_H;
+      const k=b.t/FUSE, blink=(Math.floor(b.t*(4+k*14))%2)===0;
+      ctx.fillStyle='#1b151a'; ctx.fillRect(x+3,y+5,8,8);
+      ctx.fillStyle='#3e323a'; ctx.fillRect(x+4,y+6,6,6);
+      ctx.fillStyle=blink?'#ff5a3c':'#8a7a82'; ctx.fillRect(x+6,y+3,2,3);
+      if(blink){ ctx.fillStyle='rgba(255,120,60,.35)'; ctx.beginPath(); ctx.arc(x+7,y+9,7,0,7); ctx.fill(); }
+    }
+  }
+
+  function drawDark(){
+    if(!s.dark) return;
+    sctx.globalCompositeOperation='source-over';
+    sctx.fillStyle='rgba(3,2,6,0.965)'; sctx.fillRect(0,0,RUN.w,RUN.h);
+    sctx.globalCompositeOperation='destination-out';
+    // Steep falloff: a soft wide gradient washed the whole 224px-wide shaft out and
+    // "dark" read as barely dimmed. Light should be a pool you carry, not a tint.
+    function punch(cx,cy,r,core){ const g=sctx.createRadialGradient(cx,cy,0,cx,cy,r);
+      g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(core||0.30,'rgba(0,0,0,.92)');
+      g.addColorStop(0.62,'rgba(0,0,0,.34)'); g.addColorStop(1,'rgba(0,0,0,0)');
+      sctx.fillStyle=g; sctx.beginPath(); sctx.arc(cx,cy,r,0,7); sctx.fill(); }
+    // the headlamp throws further in the direction the bot faces
+    const hx=s.bx+BOT_W/2, hy=s.by-s.camY+HUD_H+BOT_H/2;
+    punch(hx, hy, 38, 0.32);
+    punch(hx + s.face*16, hy, 32, 0.22);
+    for(const L of s.lamps){ const ly=L.ty*TILE-s.camY+HUD_H+7;
+      if(ly>-40 && ly<RUN.h+40) punch(L.tx*TILE+7, ly, 32); }
+    for(const b of s.bombs){ const by2=b.ty*TILE-s.camY+HUD_H+9;
+      punch(b.tx*TILE+7, by2, 16); }
+    if(s.beam) punch(s.beam.x+s.beam.w/2, s.beam.y-s.camY+HUD_H, 20);
+    sctx.globalCompositeOperation='source-over';
+    ctx.drawImage(shadow,0,0);
+  }
+
+  function drawHUD(){
+    ctx.fillStyle='#1a1319'; ctx.fillRect(0,0,RUN.w,HUD_H);
+    ctx.fillStyle='#2e2430'; ctx.fillRect(0,HUD_H-2,RUN.w,2);
+    ctx.font='9px "Jersey 15", monospace'; ctx.textBaseline='middle';
+    ctx.fillStyle='#fdf3e7'; ctx.textAlign='left';
+    ctx.fillText(pad(s.score,6), 3, 6);
+    ctx.fillStyle='#f2a03d'; ctx.fillText('SHAFT '+s.shaft, 46, 6);
+    // lives
+    ctx.textAlign='right'; ctx.fillStyle='#8a7a82';
+    for(let i=0;i<Math.min(s.lives-1,6);i++){ ctx.fillStyle='#3a6ff7'; ctx.fillRect(RUN.w-6-i*6, 2, 4, 6); }
+    // charges
+    ctx.fillStyle='#fdf3e7'; ctx.textAlign='left';
+    for(let i=0;i<s.charges;i++){ ctx.fillStyle='#c0392b'; ctx.fillRect(3+i*5, 11, 3, 5); }
+    // fuel bar
+    const bx=40, bw=RUN.w-46, k=Math.max(0,s.fuel/s.fuelMax);
+    ctx.fillStyle='#2e2430'; ctx.fillRect(bx,11,bw,5);
+    const g=ctx.createLinearGradient(bx,0,bx+bw,0);
+    g.addColorStop(0, k<0.25?'#c0392b':'#f2a03d'); g.addColorStop(1, k<0.25?'#e8674f':'#ffe9a8');
+    ctx.fillStyle=g; ctx.fillRect(bx+1,12,Math.max(0,(bw-2)*k),3);
+    if(k<0.25 && Math.floor(s.timeMs/220)%2===0){ ctx.fillStyle='rgba(255,90,60,.5)'; ctx.fillRect(bx,11,bw,5); }
+    ctx.textBaseline='alphabetic';
+  }
+
+  function drawBanner(){
+    if(s.phase==='clear' && s.tally){
+      ctx.fillStyle='rgba(20,12,22,.78)'; ctx.fillRect(0,RUN.h/2-46,RUN.w,92);
+      ctx.textAlign='center'; ctx.fillStyle='#f2a03d'; ctx.font='16px "Jersey 15", monospace';
+      ctx.fillText('BOT RESCUED', RUN.w/2, RUN.h/2-26);
+      ctx.font='10px "Jersey 15", monospace'; ctx.fillStyle='#fdf3e7';
+      ctx.fillText('RESCUE  '+s.tally.rescue, RUN.w/2, RUN.h/2-8);
+      ctx.fillText('LAMP  '+s.tally.fuel+' x10 = '+s.tally.fuelPts, RUN.w/2, RUN.h/2+6);
+      ctx.fillText('CHARGES  '+s.tally.charges+' x50 = '+s.tally.chargePts, RUN.w/2, RUN.h/2+20);
+      ctx.fillStyle='#3a6ff7'; ctx.fillText('NEXT: SHAFT '+(s.shaft+1), RUN.w/2, RUN.h/2+36);
+      ctx.textAlign='left';
+    }
+    if(s.phase==='play' && s.timeMs>0 && s.fuel>s.fuelMax-6){
+      ctx.textAlign='center'; ctx.fillStyle='rgba(253,243,231,.8)'; ctx.font='11px "Jersey 15", monospace';
+      ctx.fillText(s.shaftName, RUN.w/2, HUD_H+16); ctx.textAlign='left';
+    }
+  }
+
+  function draw(){
+    const p=pal();
+    ctx.save();
+    if(s.shake>0 && !reduce) ctx.translate((Math.random()-0.5)*s.shake*8, (Math.random()-0.5)*s.shake*8);
+    drawBack(p);
+    ctx.save(); ctx.beginPath(); ctx.rect(0,HUD_H,RUN.w,RUN.h-HUD_H); ctx.clip();
+    const y0=Math.max(0,Math.floor(s.camY/TILE)), y1=Math.min(s.H-1, Math.ceil((s.camY+RUN.h)/TILE));
+    for(let ty=y0;ty<=y1;ty++){ const sy=ty*TILE - s.camY + HUD_H;
+      for(let tx=0;tx<W;tx++){ const c=s.grid[ty][tx]; if(c==='.') continue;
+        const sx=tx*TILE;
+        if(c==='#') tileRock(sx,sy,p,false);
+        else if(c==='%') tileRock(sx,sy,p,true);
+        else if(c==='=') tileBed(sx,sy,tx,ty);
+        else if(c==='~') tileSlag(sx,sy);
+        else if(c==='*') tileLamp(sx,sy);
+        // a ledge overhanging air casts a shadow, so floors read as thick rock
+        // rather than slabs floating in a void
+        if(c!=='.' && c!=='*' && c!=='~' && s.grid[ty+1] && s.grid[ty+1][tx]==='.'){
+          const sh=ctx.createLinearGradient(0,sy+TILE,0,sy+TILE+6);
+          sh.addColorStop(0,'rgba(0,0,0,.42)'); sh.addColorStop(1,'rgba(0,0,0,0)');
+          ctx.fillStyle=sh; ctx.fillRect(sx,sy+TILE,TILE,6);
+        }
+      } }
+    drawCut(); drawMiner();
+    for(const m of s.mobs) if(m.alive) drawMob(m);
+    drawBombs(); drawBeam(); drawHero();
+    ctx.restore();
+    drawDark();
+    drawHUD(); drawBanner();
+    ctx.restore();
+  }
+
+  /* ========================= INPUT =====================================
+     The H.E.R.O. cabinet: joystick UP = rotor, LEFT/RIGHT = move, DOWN = drop
+     dynamite (ground only), button = laser. On touch that is MOVEMENT LEFT /
+     ACTIONS RIGHT — a ▲◀▶ cluster under the left thumb, BEAM + CHARGE under
+     the right. Independent held-flags so rotor + steer + beam all run at once.
+     ==================================================================== */
+  const key={l:false,r:false,u:false,fire:false,blast:false};
+  function apply(){ if(!active || s.phase==='dead'){ s.inL=s.inR=s.inUp=s.inFire=s.inBlast=false; return; }
+    s.inL=key.l; s.inR=key.r; s.inUp=key.u; s.inFire=key.fire; s.inBlast=key.blast; }
+  function bind(id,k){ const el=document.getElementById(id); if(!el)return;
+    const on=e=>{e.preventDefault(); el.classList.add('on'); key[k]=true;},
+          off=e=>{e.preventDefault(); el.classList.remove('on'); key[k]=false;};
+    el.addEventListener('pointerdown',on); el.addEventListener('pointerup',off);
+    el.addEventListener('pointerleave',off); el.addEventListener('pointercancel',off); }
+  bind('padU','u'); bind('padL','l'); bind('padR','r'); bind('padFire','fire'); bind('padBlast','blast');
+  const KEYS={ArrowUp:'u',ArrowLeft:'l',ArrowRight:'r',Up:'u',Left:'l',Right:'r',
+              w:'u',a:'l',d:'r',W:'u',A:'l',D:'r'};
+  addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ closeRules(); return; }
+    if(e.key==='r'||e.key==='R'){ restart(); return; }
+    if(e.key==='m'||e.key==='M'){ muted=!muted; return; }
+    if(!active) return;
+    if(e.key===' '){ key.fire=true; e.preventDefault(); return; }
+    if(e.key==='ArrowDown'||e.key==='Down'||e.key==='s'||e.key==='S'||e.key==='b'||e.key==='B'){ key.blast=true; e.preventDefault(); return; }
+    const k=KEYS[e.key]; if(k){ key[k]=true; e.preventDefault(); } });
+  addEventListener('keyup',e=>{
+    if(e.key===' '){ key.fire=false; return; }
+    if(e.key==='ArrowDown'||e.key==='Down'||e.key==='s'||e.key==='S'||e.key==='b'||e.key==='B'){ key.blast=false; return; }
+    const k=KEYS[e.key]; if(k) key[k]=false; });
+  // canvas drag: left/right half steers, top half lifts — a one-finger fallback
+  let ptr=null;
+  cv.addEventListener('pointerdown',e=>{ ptr=e.pointerId; cv.setPointerCapture(ptr); dragTo(e); });
+  cv.addEventListener('pointermove',e=>{ if(ptr===e.pointerId) dragTo(e); });
+  function endPtr(){ ptr=null; key.l=key.r=key.u=false; }
+  cv.addEventListener('pointerup',endPtr); cv.addEventListener('pointercancel',endPtr);
+  function dragTo(e){ const r=cv.getBoundingClientRect();
+    const gx=(e.clientX-r.left)/r.width*RUN.w, gy=(e.clientY-r.top)/r.height*RUN.h;
+    const hy=s.by - s.camY + HUD_H + BOT_H/2, hx=s.bx + BOT_W/2;
+    key.l = gx < hx-5; key.r = gx > hx+5; key.u = gy < hy-3; }
+
+  /* ---- engine contract ---- */
+  function startRun(){ s=newRun(); active=true; prevPhase='play';
+    rulesO.classList.remove('show'); overO.classList.remove('show'); paidO.classList.remove('show'); }
+  function idleForPaid(){ s=newRun(); active=false; }
+  function resumeFree(){ s=newRun(); active=true; prevPhase='play'; overO.classList.remove('show'); }
+  window.HOVERBOTEngine = { start:startRun, idle:idleForPaid, resumeFree:resumeFree, state:()=>s };
+  function endRun(){ active=false; syncHUD();
+    const res={ score:s.score, shaft:s.shaft, rescues:s.rescues, timeMs:s.timeMs };
+    if(window.HOVERBOTPaid && HOVERBOTPaid.onRunEnd && HOVERBOTPaid.onRunEnd(res)) return;
+    showOver(); }
+
+  /* ---- loop ---- */
+  let last=performance.now(), acc=0; const TICK=1000/60;
+  function frame(now){ let dt=now-last; last=now; if(dt>200)dt=200;
+    if(active && s.phase!=='dead' && !rulesO.classList.contains('show')){
+      acc+=dt; let guard=0;
+      while(acc>=TICK && s.phase!=='dead' && guard<6){ acc-=TICK; apply();
+        const ev=stepGame(s,TICK);
+        if(!muted){
+          if(ev.kill) tone(240,0.07,'square',0.04);
+          if(ev.cut) tone(520,0.06,'triangle',0.035);
+          if(ev.lamp) tone(180,0.12,'sawtooth',0.03);
+          if(ev.drop) tone(420,0.05,'square',0.03);
+          if(ev.boom) noise(0.35,0.12);
+          if(ev.die) tone(90,0.45,'sawtooth',0.06);
+          if(ev.rescue){ tone(660,0.1,'square',0.05); setTimeout(()=>{if(!muted)tone(880,0.14,'square',0.05);},110); }
+          if(ev.life) tone(1040,0.18,'triangle',0.05);
+        }
+        guard++; }
+      // rotor hum
+      if(!muted && s.rotor && s.phase==='play'){ beamHum+=dt; if(beamHum>90){ beamHum=0; tone(120+Math.random()*20,0.05,'sawtooth',0.018); } }
+    } else { acc=0; }
+    // camera
+    const target=Math.max(0, Math.min(s.H*TILE-(RUN.h-HUD_H), s.by - (RUN.h-HUD_H)*0.45));
+    s.camY += (target - s.camY) * Math.min(1, dt/1000*9);
+    if(s.phase!=='play' && prevPhase!=='dead' && s.phase==='dead') endRun();
+    prevPhase=s.phase; syncHUD(); draw(); requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  try{ var _p=new URLSearchParams(location.search); if(!_p.get('phantom_action') && _p.get('src')!=='browse') openRules(); }catch(e){}
+})();
+}
+</script>
+
+<!-- Shared wallet libs (loaded once; the wallet LOGIC stays dead until Paid is chosen — mirrors live Mr Bot / Rush). -->
+<script src="phantom-deeplink-libs.min.js?v=20260906a"></script>
+<script src="phantom-mobile.js?v=20260906a"></script>
+<script src="solana-web3.iife.min.js?v=20260906a"></script>
+<script>
+  // NOTE: the score-memo SHAPE (buildScoreMemo + the result fields it carries: res.height/res.oil/...) is
+  // per-game — change those to your run stats. Everything else in this layer stays byte-identical.
+/* ============================================================================
+ * Bot Smash — Paid layer. HOVR sink + fun leaderboard.
+ * The wallet MECHANICS below (getProvider, fetchOilBalance, buildTransferIx,
+ * buildMemoIx, confirmSignature, sendPayment, onConnect, resume) are LIFTED
+ * VERBATIM from the live Mr Bot index.html (itself lifted from Bot Merge Rush)
+ * — only CFG values, the HOVR memo tag / pending key / sign marker, and the
+ * score-memo shape change. The UI glue is Bot Smash's (single-run action game).
+ * Bot Smash is real-time and UNREPLAYABLE. The leaderboard is a FUN RANKING +
+ * an OIL SINK. It is NOT verified / provably fair. Records, does not verify.
+ * ==========================================================================*/
+(function(){
+  'use strict';
+  var mode = 'free';
+  function $(id){ return document.getElementById(id); }
+
+  function lockModeToggle(lock){
+    $('modeFree').disabled = !!lock;
+    $('modePaid').disabled = !!lock;
+  }
+
+  var Paid = (function(){
+    var TEST_MODE = true;     // <-- ships TEST for Localnet proof; flip to false ONLY with Founder confirm in this run's output
+    var CFG = TEST_MODE ? {
+      RPC: 'http://127.0.0.1:8899',
+      TOKEN_PROGRAM: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      MEMO_PROGRAM: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+      OIL_MINT: '9B5ZQifZQc3ykhnZhA9m8DFoNY5uaTwqHGNZMah6eK8Y',
+      TREASURY: '8tzZzNiGkE2kYXhUSauNEUyVHiaWBt5pBagg7CHKPNBM',
+      TREASURY_TOKEN_ACCOUNT: '3s1SQ7JZmti4PfhVsb7LCTn9q5ZhRBMaH6v2vsrVZeg6',
+      ENTRY_FEE: 25, POST_FEE: 1, DECIMALS: 2
+    } : {
+      RPC: 'https://finnbots-rpc.mart-kin1000.workers.dev',
+      TOKEN_PROGRAM: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+      MEMO_PROGRAM: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
+      OIL_MINT: 'HrcfXJcFdMoLfbkN5qCTSFrLsAgJNHitmwKc5AyS7xzf',
+      TREASURY: '75WPN3kwYUT5kdPU7V3Fp3LhnxmPC38bsgBCasRQdXMR',
+      TREASURY_TOKEN_ACCOUNT: '2ZBNMLZFfHCuZm9Lfc3b7ut296tRwGtapuXad7zSm1ED',
+      ENTRY_FEE: 25, POST_FEE: 1, DECIMALS: 2
+    };
+    var MEMO_TAG = 'HOVR';
+    var wallet = { pubkey:null, oil:0 };
+    var inited=false, busy=false, entrySig=null, pendingResult=null;
+    var connectBtn, walletStatus;
+
+    function $(id){ return document.getElementById(id); }
+    // ---- verbatim from Rush/Mr Bot ----
+    function getProvider(){ if(window.phantom&&window.phantom.solana&&window.phantom.solana.isPhantom) return window.phantom.solana; if(window.solana&&window.solana.isPhantom) return window.solana; return null; }
+    function shortAddr(a){ return a.slice(0,4)+'\u2026'+a.slice(-4); }
+    function setStatus(html,cls){ walletStatus.classList.remove('hidden'); walletStatus.className='wallet-status'+(cls?' '+cls:''); walletStatus.innerHTML=html; }
+    function canPlay(){ return !!wallet.pubkey && wallet.oil>=CFG.ENTRY_FEE; }
+    function delay(ms){ return new Promise(function(res){ setTimeout(res,ms); }); }
+
+    // ---- balance (verbatim from Rush/Mr Bot) -------------------------------
+    async function fetchOilBalance(owner){
+      try{ var body=JSON.stringify({ jsonrpc:'2.0', id:'oilbal', method:'getTokenAccountsByOwner', params:[ owner, { mint:CFG.OIL_MINT }, { encoding:'jsonParsed' } ] });
+        var r=await fetch(CFG.RPC,{ method:'POST', headers:{'Content-Type':'application/json'}, body:body }); if(!r.ok) return 0;
+        var j=await r.json(); var accts=j&&j.result&&j.result.value; if(!accts||!accts.length) return 0;
+        var base=0; accts.forEach(function(acc){ try{ base+=Number(acc.account.data.parsed.info.tokenAmount.amount); }catch(e){} });
+        return base/Math.pow(10,CFG.DECIMALS);
+      }catch(e){ return 0; }
+    }
+    async function checkBalance(owner){
+      wallet.oil=await fetchOilBalance(owner);
+      var pfx=TEST_MODE?'\ud83e\uddea TEST MODE \u2014 ':'';
+      if(wallet.oil>=CFG.ENTRY_FEE){ setStatus('Connected as <span class="addr">'+shortAddr(owner)+'</span><br/>'+pfx+'You hold <b>'+wallet.oil.toFixed(2)+'</b> $OIL \u2014 tap Play to enter (25 OIL).', 'ok'); }
+      else { setStatus('Connected as <span class="addr">'+shortAddr(owner)+'</span><br/>'+pfx+'This wallet holds <b>'+wallet.oil.toFixed(2)+'</b> $OIL \u2014 need at least '+CFG.ENTRY_FEE+' to play.', 'warn'); }
+      relabelStart();
+    }
+
+    // ---- payment (one signed SPL transfer + memo — verbatim from Rush/Mr Bot) ----
+    var PENDING_KEY='hovr_pending_action';
+    function savePending(a){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(a)); }catch(e){} }
+    function loadPending(){ try{ var v=localStorage.getItem(PENDING_KEY); return v?JSON.parse(v):null; }catch(e){ return null; } }
+    function clearPending(){ try{ localStorage.removeItem(PENDING_KEY); }catch(e){} }
+    function PayError(msg){ this.userMessage=msg; }
+    function u64LE(amount){ var out=new Uint8Array(8); var big=BigInt(Math.round(amount)); for(var i=0;i<8;i++){ out[i]=Number(big&0xffn); big>>=8n; } return out; }
+    function buildTransferIx(src,dst,owner,amt){ var data=new Uint8Array(9); data[0]=3; data.set(u64LE(amt),1);
+      return new solanaWeb3.TransactionInstruction({ programId:new solanaWeb3.PublicKey(CFG.TOKEN_PROGRAM),
+        keys:[{pubkey:src,isSigner:false,isWritable:true},{pubkey:dst,isSigner:false,isWritable:true},{pubkey:owner,isSigner:true,isWritable:false}], data:data }); }
+    function buildMemoIx(owner,text){ return new solanaWeb3.TransactionInstruction({ programId:new solanaWeb3.PublicKey(CFG.MEMO_PROGRAM), keys:[{pubkey:owner,isSigner:true,isWritable:false}], data:new TextEncoder().encode(text) }); }
+    async function confirmSignature(connection,signature,timeoutMs){ var start=Date.now();
+      while(Date.now()-start<timeoutMs){ var res=await connection.getSignatureStatuses([signature]); var st=res&&res.value&&res.value[0];
+        if(st){ if(st.err) throw new PayError('The transaction failed on-chain \u2014 no charge was made. Please try again.'); if(st.confirmationStatus==='confirmed'||st.confirmationStatus==='finalized') return true; } await delay(1500); } return false; }
+
+    async function sendPayment(amountOil, memoText, action){
+      var provider=getProvider();
+      var useMobile=!provider && window.PhantomMobile && PhantomMobile.isMobile() && PhantomMobile.hasSession();
+      if(!provider && !useMobile) throw new PayError('Phantom isn\u2019t reachable here \u2014 open this page in your browser, or tap Connect again on mobile.');
+      var ownerPk=new solanaWeb3.PublicKey(wallet.pubkey);
+      var connection=new solanaWeb3.Connection(CFG.RPC,'confirmed');
+      var tokAccts=await connection.getTokenAccountsByOwner(ownerPk,{ mint:new solanaWeb3.PublicKey(CFG.OIL_MINT) });
+      if(!tokAccts.value.length) throw new PayError('No $OIL account found in this wallet.');
+      var sourcePubkey=tokAccts.value[0].pubkey;
+      var balInfo=await connection.getTokenAccountBalance(sourcePubkey);
+      var needBase=Math.round(amountOil*Math.pow(10,CFG.DECIMALS));
+      if(Number(balInfo.value.amount)<needBase) throw new PayError('Not enough liquid $OIL \u2014 need '+amountOil+'.');
+      var destPubkey=new solanaWeb3.PublicKey(CFG.TREASURY_TOKEN_ACCOUNT);
+      var tx=new solanaWeb3.Transaction();
+      tx.add(buildTransferIx(sourcePubkey,destPubkey,ownerPk,needBase), buildMemoIx(ownerPk,memoText));
+      tx.feePayer=ownerPk; var latest=await connection.getLatestBlockhash(); tx.recentBlockhash=latest.blockhash;
+      if(useMobile){
+        var pend={ action:action, owner:wallet.pubkey, marker:'hovr_sign' };
+        if(action==='score' && pendingResult){ pend.entrySig=entrySig; pend.score=pendingResult.score; pend.shaft=pendingResult.shaft; pend.rescues=pendingResult.rescues; pend.timeMs=pendingResult.timeMs; }
+        savePending(pend); setStatus('Opening Phantom to approve\u2026');
+        var unsigned=tx.serialize({ requireAllSignatures:false, verifySignatures:false });
+        PhantomMobile.signTransaction(unsigned, window.location.origin+window.location.pathname, 'hovr_sign'); return null;
+      }
+      var signed=await provider.signTransaction(tx); setStatus('Sending payment\u2026');
+      var rawSig=await connection.sendRawTransaction(signed.serialize(),{ skipPreflight:false }); setStatus('Payment sent \u2014 waiting for confirmation\u2026');
+      var ok=await confirmSignature(connection,rawSig,30000); if(!ok) throw new PayError('Confirmation is taking longer than expected. Signature: '+rawSig+'. Do not pay again \u2014 check it first.');
+      return rawSig; // base58 on-chain signature
+    }
+
+    // ---- score memo (HOVR — no seed, no move-log, no replay; records NOT verified) ----
+    function buildScoreMemo(res){ return MEMO_TAG+'|score|sig='+String(entrySig).slice(0,32)+'|score='+res.score+'|shaft='+res.shaft+'|rescues='+res.rescues+'|time='+res.timeMs; }
+
+    // ---- flow glue (Bot Smash: single-run action game) ---------------------
+    function relabelStart(){
+      var b=$('paidPlayBtn'); if(!b) return;
+      b.textContent = canPlay() ? 'Play (25 OIL)' : (wallet.pubkey ? 'Need 25 OIL to play' : 'Connect wallet first');
+    }
+    function relabelStartBusy(t){ var b=$('paidPlayBtn'); if(b) b.textContent=t; }
+
+    function onEntryConfirmed(sig){ entrySig=sig; busy=false; lockModeToggle(true);
+      setStatus('Entry paid \u2014 good luck! Post your score after the run.', 'ok');
+      window.HOVERBOTEngine.start(); }
+
+    // Called by the engine at game over. Returns true if this was a paid run (engine then skips its free overlay).
+    function onRunEnd(res){
+      if(mode!=='paid' || !entrySig) return false;
+      pendingResult={ score:res.score, shaft:res.shaft, rescues:res.rescues, timeMs:res.timeMs };
+      showRunOver(pendingResult); return true;
+    }
+    function fmtTime(ms){ var s=Math.round(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+
+    function showRunOver(res){
+      setStatus('Run over \u2014 post your score below to record it (1 OIL).', 'ok'); relabelStart();
+      var ov=$('paidOverlay'); ov.classList.add('show');
+      ov.innerHTML='<div class="card win"><h2>RESCUE OVER</h2><p>Shaft <b>'+res.shaft+'</b> \u00b7 Rescues <b>'+res.rescues+'</b> \u00b7 Score <b>'+res.score+'</b> \u00b7 Time <b>'+fmtTime(res.timeMs)+'</b><br/>Post it to the leaderboard (1 OIL) \u2014 a fun ranking, not verified.</p>'+
+        '<button class="btn" id="postBtn">Post score (1 OIL)</button></div>';
+      $('postBtn').addEventListener('click', onPost, { once:false });
+    }
+    async function onPost(){
+      if(busy || !pendingResult) return;
+      busy=true; var pb=$('postBtn'); if(pb){ pb.disabled=true; pb.textContent='Posting\u2026'; }
+      var memo=buildScoreMemo(pendingResult);
+      try{ var sig=await sendPayment(CFG.POST_FEE, memo, 'score'); if(sig===null) return; showPosted(pendingResult); }
+      catch(e){ setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey||'')+'</span><br/>'+((e instanceof PayError)?e.userMessage:'Your score post didn\u2019t confirm. Nothing recorded yet \u2014 tap to retry.'), 'warn');
+        if(pb){ pb.disabled=false; pb.textContent='Retry post'; } busy=false; }
+    }
+    function showPosted(res){ pendingResult=null; entrySig=null; busy=false; lockModeToggle(false);
+      $('posted-text').innerHTML='Shaft <b>'+res.shaft+'</b> \u00b7 Rescues <b>'+res.rescues+'</b> \u00b7 Score <b>'+res.score+'</b> \u00b7 Time <b>'+fmtTime(res.timeMs)+'</b>. It\u2019ll appear on the leaderboard once recorded on-chain \u2014 a fun ranking, not verified.';
+      $('paidOverlay').classList.remove('show');
+      $('postedSheet').classList.add('show');
+    }
+
+    // Paid start card (idle state before entry) — mirrors Mr Bot's resetToPlay.
+    function showPaidStart(){
+      entrySig=null; pendingResult=null; busy=false; lockModeToggle(false);
+      var ov=$('paidOverlay'); ov.classList.add('show');
+      ov.innerHTML='<div class="card"><h2>HOVERBOT \u2014 PAID</h2><p>25 OIL entry \u00b7 one run (4 lives, no continues) \u00b7 fun leaderboard, not verified. Fly the shaft, beat the lamp, bring the trapped bot home \u2014 holders \u00d71.5.</p>'+
+        '<button class="btn" id="paidPlayBtn">Play (25 OIL)</button></div>';
+      $('paidPlayBtn').addEventListener('click', function(){ handleStart(); });
+      relabelStart();
+      if(wallet.pubkey) checkBalance(wallet.pubkey);
+    }
+
+    // ---- connect (desktop + mobile — verbatim from Rush/Mr Bot) ------------
+    async function onConnect(){
+      var provider=getProvider();
+      if(!provider){
+        if(window.PhantomMobile && PhantomMobile.isMobile()){
+          var inBrowse=new URLSearchParams(window.location.search).get('src')==='browse';
+          if(!inBrowse){ connectBtn.disabled=true; connectBtn.textContent='Opening in Phantom\u2026'; setStatus('Opening this game inside Phantom\u2019s browser.');
+            var target=window.location.origin+window.location.pathname+'?src=browse';
+            window.location.href='https://phantom.app/ul/browse/'+encodeURIComponent(target)+'?ref='+encodeURIComponent(window.location.origin); return; }
+          connectBtn.disabled=true; connectBtn.textContent='Opening Phantom\u2026'; setStatus('Opening Phantom \u2014 approve, then you\u2019ll come back here.');
+          PhantomMobile.connect(window.location.origin+window.location.pathname); return;
+        }
+        setStatus('Phantom isn\u2019t reachable here. Open this page in a browser with the <a href="https://phantom.app" target="_blank" rel="noopener">Phantom</a> extension.', 'warn'); return;
+      }
+      connectBtn.disabled=true; connectBtn.textContent='Connecting\u2026';
+      try{ var resp=await provider.connect(); wallet.pubkey=resp.publicKey.toString(); connectBtn.textContent='Connected';
+        setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey)+'</span><br/>Checking your $OIL balance\u2026'); checkBalance(wallet.pubkey);
+      }catch(e){ connectBtn.disabled=false; connectBtn.textContent='Connect'; setStatus('Connection cancelled. Tap Connect to try again.', 'warn'); }
+    }
+
+    // ---- play (25 OIL entry) -----------------------------------------------
+    async function onPlay(){
+      if(busy || entrySig) return;
+      if(!canPlay()){ setStatus('Connect a wallet holding at least '+CFG.ENTRY_FEE+' $OIL to play.', 'warn'); return; }
+      busy=true; relabelStartBusy('Sending entry\u2026');
+      try{ var sig=await sendPayment(CFG.ENTRY_FEE, MEMO_TAG+'|entry', 'entry'); if(sig===null) return; onEntryConfirmed(sig); }
+      catch(e){ setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey||'')+'</span><br/>'+((e instanceof PayError)?e.userMessage:'Something went wrong sending the entry. No confirmed charge means nothing was taken.'), 'warn');
+        busy=false; relabelStart(); }
+    }
+
+    // handleStart is the entry gate reused by the Paid start card's Play button.
+    function handleStart(){
+      if(mode!=='paid') return false;      // Free: engine runs as normal
+      if(busy || entrySig) return true;    // in-flight or a paid run already armed: block
+      if(!wallet.pubkey){ setStatus('Connect a wallet with at least '+CFG.ENTRY_FEE+' $OIL, then tap Play.', 'warn'); return true; }
+      onPlay(); return true;
+    }
+
+    function onAgain(){ $('postedSheet').classList.remove('show'); window.HOVERBOTEngine.idle(); showPaidStart(); }
+
+    // ---- mobile redirect resume (verbatim from Rush/Mr Bot; carries waves/score/timeMs) --
+    async function resume(){
+      var actionParam=new URLSearchParams(window.location.search).get('phantom_action');
+      if(!actionParam){
+        if(!wallet.pubkey && window.PhantomMobile && PhantomMobile.hasSession()){ wallet.pubkey=PhantomMobile.getSessionPublicKey();
+          connectBtn.textContent='Connected'; connectBtn.disabled=true; setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey)+'</span><br/>Checking your $OIL balance\u2026'); checkBalance(wallet.pubkey); }
+        return;
+      }
+      connectBtn.disabled=true; connectBtn.textContent='Finishing\u2026'; setStatus('Almost there \u2014 finishing up with Phantom\u2026');
+      var pending=loadPending(); var marker=pending?pending.marker:'hovr_sign';
+      var result=window.PhantomMobile?PhantomMobile.consumePendingRedirect(marker):null;
+      if(result&&result.type==='connect'){ wallet.pubkey=result.publicKey; connectBtn.textContent='Connected';
+        setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey)+'</span><br/>Checking your $OIL balance\u2026'); checkBalance(wallet.pubkey); return; }
+      if(result&&result.type==='signTransaction'&&pending){ connectBtn.textContent='Connected'; connectBtn.disabled=true; if(pending.owner) wallet.pubkey=pending.owner; clearPending();
+        try{ var connection=new solanaWeb3.Connection(CFG.RPC,'confirmed'); var rawSig=await connection.sendRawTransaction(result.txBytes,{ skipPreflight:false });
+          setStatus('Payment sent \u2014 waiting for confirmation\u2026'); var ok=await confirmSignature(connection,rawSig,30000);
+          if(!ok) throw new PayError('Confirmation slow. Signature: '+rawSig+'. Do not pay again \u2014 check it first.');
+          if(pending.action==='entry'){ onEntryConfirmed(rawSig); }
+          else if(pending.action==='score'){ pendingResult={ score:pending.score, shaft:pending.shaft, rescues:pending.rescues, timeMs:pending.timeMs }; showPosted(pendingResult); }
+          if(wallet.pubkey) checkBalance(wallet.pubkey);
+        }catch(e){ setStatus('Connected as <span class="addr">'+shortAddr(wallet.pubkey||'')+'</span><br/>'+((e instanceof PayError)?e.userMessage:'Something went wrong after returning from Phantom. Check your wallet activity before retrying.'), 'warn'); }
+        return;
+      }
+      connectBtn.disabled=false; connectBtn.textContent='Connect';
+      setStatus((result&&result.type==='error')?result.message:'The connection didn\u2019t complete \u2014 tap Connect to try again.', 'warn');
+    }
+
+    function init(){
+      if(inited) return; inited=true;
+      connectBtn=$('connectBtn'); walletStatus=$('walletStatus');
+      if(TEST_MODE){ $('testBanner').classList.remove('hidden'); }
+      connectBtn.addEventListener('click', onConnect);
+      $('againBtn').addEventListener('click', onAgain);
+    }
+
+    return { init:init, resume:resume, onRunEnd:onRunEnd, handleStart:handleStart,
+             showPaidStart:showPaidStart, hasSession:function(){ return window.PhantomMobile && PhantomMobile.hasSession(); } };
+  })();
+
+  window.HOVERBOTPaid = Paid;
+
+  // ===== Mode switching (kid-safety: Paid is a deliberate opt-in) ============
+  var facts=$('facts');
+  var confirmSheet=$('confirmSheet');
+  var FREE_FACTS='Free \u00b7 wallet-free \u00b7 pays nothing';
+  var PAID_FACTS='Paid \u00b7 25 OIL entry \u00b7 one run \u00b7 fun leaderboard (not verified) \u00b7 holders \u00d71.5';
+
+  function setMode(m){
+    mode=m;
+    var f=$('modeFree'), p=$('modePaid');
+    if(m==='free'){
+      document.body.classList.remove('mode-paid');
+      f.classList.add('active'); p.classList.remove('active');
+      if(facts) facts.textContent=FREE_FACTS;
+    } else {
+      document.body.classList.add('mode-paid');
+      p.classList.add('active'); f.classList.remove('active');
+      if(facts) facts.textContent=PAID_FACTS;
+    }
+  }
+
+  $('modeFree').addEventListener('click', function(){ if(mode==='free') return; setMode('free'); window.HOVERBOTEngine.resumeFree(); });
+  $('modePaid').addEventListener('click', function(){ if(mode==='paid') return; confirmSheet.classList.add('show'); });
+  $('confirmBack').addEventListener('click', function(){ confirmSheet.classList.remove('show'); });
+  $('confirmEnter').addEventListener('click', function(){ confirmSheet.classList.remove('show'); setMode('paid'); Paid.init(); window.HOVERBOTEngine.idle(); Paid.showPaidStart(); if(Paid.hasSession && Paid.hasSession()) Paid.resume(); });
+
+  // ===== On load: Free by default. The wallet layer is only touched when returning
+  // ===== from a Phantom redirect or already inside Phantom's browser (both of which
+  // ===== can ONLY occur after the user opted into Paid). =====================
+  (function boot(){
+    var params=new URLSearchParams(window.location.search);
+    if(params.get('phantom_action') || params.get('src')==='browse'){ setMode('paid'); Paid.init(); window.HOVERBOTEngine.idle(); Paid.showPaidStart(); Paid.resume(); }
+    else { setMode('free'); }
+  })();
+})();
+</script>
+</body>
+</html>
