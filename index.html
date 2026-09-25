@@ -461,7 +461,7 @@ canvas{ touch-action:none; }
       <canvas id="game" width="224" height="298" aria-label="HOVERBOT play area."></canvas>
     </main>
 
-    <!-- The H.E.R.O. cabinet, two-thumb: joystick UP = rotor, LEFT/RIGHT = fly,
+    <!-- The shaft-rescue cabinet, two-thumb: joystick UP = rotor, LEFT/RIGHT = fly,
          DOWN = drop a charge (ground only), button = beam. MOVEMENT under the left
          thumb, ACTIONS under the right, independent held-flags so rotor + steer +
          beam all run at once. -->
@@ -543,11 +543,11 @@ canvas{ touch-action:none; }
 "use strict";
 /* ==========================================================================
    HOVERBOT — FinnBots.  ENGINE (Free gameplay).
-   H.E.R.O.-loop mine rescue: rotor-pack descent down a shaft, the headlamp is
+   shaft-rescue loop mine rescue: rotor-pack descent down a shaft, the headlamp is
    the fuel clock, a helmet beam cuts stone + kills critters, blast charges open
    floors, and a trapped bot waits at the bottom of every shaft.
 
-   CLONE FIDELITY — matched to Activision's H.E.R.O. (1984, John Van Ryzin) on
+   CLONE FIDELITY — matched to the 1984 shaft-rescue original on
    mechanics / scoring / feel; ALL art + names are original FinnBots.
      · creature killed ............ 50
      · wall tile destroyed ........ 25   (a 3-tile wall blasted = 75, per manual)
@@ -636,7 +636,7 @@ function shaft(name, fuel, dark, body){
 }
 
 /* ============================ THE 20 SHAFTS ==============================
-   Original FinnBots layouts built to the H.E.R.O. FEEL — a vertical descent
+   Original FinnBots layouts built to the the shaft-rescue original FEEL — a vertical descent
    threaded with ledges, cut-throughs, lamps and critters, escalating to ember
    seams, slag pools, dark drifts and tendrils. NOT the original's level data.
    Every critical path is clearable by the CORE LOOP ALONE (fly + horizontal
@@ -2156,7 +2156,7 @@ if(!HEADLESS){
   }
 
   /* ========================= INPUT =====================================
-     The H.E.R.O. cabinet: joystick UP = rotor, LEFT/RIGHT = move, DOWN = drop
+     The shaft-rescue cabinet: joystick UP = rotor, LEFT/RIGHT = move, DOWN = drop
      dynamite (ground only), button = laser. On touch that is MOVEMENT LEFT /
      ACTIONS RIGHT — a ▲◀▶ cluster under the left thumb, BEAM + CHARGE under
      the right. Independent held-flags so rotor + steer + beam all run at once.
