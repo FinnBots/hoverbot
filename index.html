@@ -1823,7 +1823,12 @@ function mob(type,x,y){
 
 /* ============================== THE RUN ================================== */
 function newRun(){
-  const s = { phase:'play', score:0, lives:START_LIVES, rescues:0, shaft:1,
+  /* `phase` is the CHASSIS TERMINATION CONTRACT and nothing else: play | dead.
+              The death and shaft-clear beats used to live in it, and a sub-state parked
+              there is one no driver can see past — every driver in the factory loops
+              `while(phase==="play")`, so each death TRUNCATED the run being measured.
+              `beat` carries them instead: '' | 'die' | 'clear'. */
+  const s = { phase:'play', beat:'', score:0, lives:START_LIVES, rescues:0, shaft:1,
               timeMs:0, nextLife:EXTRA_LIFE, won:false,
               dieT:0, clearT:0, tally:null, shake:0,
               inL:false, inR:false, inUp:false, inFire:false, inBlast:false,
@@ -1862,8 +1867,8 @@ function killTile(s,tx,ty){
   return false;
 }
 function die(s){
-  if(s.phase!=='play') return;
-  s.phase='die'; s.dieT=0; s.lives--; s.shake=0.45; s.ev.die=true;
+  if(s.phase!=='play' || s.beat) return;
+  s.beat='die'; s.dieT=0; s.lives--; s.shake=0.45; s.ev.die=true;
   s.beamOn=false; s.cut=null;
 }
 
@@ -1875,19 +1880,19 @@ function stepGame(s, dtMs){
   s.timeMs += dtMs;
   if(s.shake>0) s.shake = Math.max(0, s.shake - dt);
 
-  if(s.phase==='die'){
+  if(s.beat==='die'){
     s.dieT += dt;
     if(s.dieT >= 1.15){
-      if(s.lives > 0){ loadShaft(s, s.shaft); s.phase='play'; }
-      else { s.phase='dead'; ev.over=true; }
+      if(s.lives > 0){ loadShaft(s, s.shaft); s.beat=''; }
+      else { s.phase='dead'; s.beat=''; ev.over=true; }
     }
     return ev;
   }
-  if(s.phase==='clear'){
+  if(s.beat==='clear'){
     s.clearT += dt;
     if(s.clearT >= 2.4){
-      if(s.score >= OPERATION_END){ s.won=true; s.phase='dead'; ev.over=true; return ev; }
-      s.shaft++; loadShaft(s, s.shaft); s.phase='play'; ev.newShaft=true;
+      if(s.score >= OPERATION_END){ s.won=true; s.phase='dead'; s.beat=''; ev.over=true; return ev; }
+      s.shaft++; loadShaft(s, s.shaft); s.beat=''; ev.newShaft=true;
     }
     return ev;
   }
@@ -2036,7 +2041,7 @@ function stepGame(s, dtMs){
     const fuelLeft = Math.floor(s.fuel);
     const fb = fuelLeft*PTS_PER_FUEL, cb = s.charges*PTS_PER_CHARGE;
     addScore(s, PTS_RESCUE); addScore(s, fb); addScore(s, cb);
-    s.rescues++; s.phase='clear'; s.clearT=0; ev.rescue=true;
+    s.rescues++; s.beat='clear'; s.clearT=0; ev.rescue=true;
     s.tally = { rescue:PTS_RESCUE, fuel:fuelLeft, fuelPts:fb, charges:s.charges, chargePts:cb };
   }
   return ev;
@@ -2281,7 +2286,7 @@ if(!HEADLESS){
 
   function drawHero(){
     const x=Math.round(s.bx), y=Math.round(s.by - s.camY + HUD_H);
-    if(s.phase==='die'){
+    if(s.beat==='die'){
       const k=s.dieT/1.15;
       ctx.globalAlpha = (Math.floor(s.dieT*14)%2)?0.25:0.9;
       ctx.fillStyle='#ffd77a';
@@ -2373,7 +2378,7 @@ if(!HEADLESS){
   }
 
   function drawBanner(){
-    if(s.phase==='clear' && s.tally){
+    if(s.beat==='clear' && s.tally){
       ctx.fillStyle='rgba(20,12,22,.78)'; ctx.fillRect(0,RUN.h/2-46,RUN.w,92);
       ctx.textAlign='center'; ctx.fillStyle='#f2a03d'; ctx.font='16px "Jersey 15", monospace';
       ctx.fillText('BOT RESCUED', RUN.w/2, RUN.h/2-26);
@@ -2384,7 +2389,7 @@ if(!HEADLESS){
       ctx.fillStyle='#3a6ff7'; ctx.fillText('NEXT: SHAFT '+(s.shaft+1), RUN.w/2, RUN.h/2+36);
       ctx.textAlign='left';
     }
-    if(s.phase==='play' && s.timeMs>0 && s.fuel>s.fuelMax-6){
+    if(s.phase==='play' && !s.beat && s.timeMs>0 && s.fuel>s.fuelMax-6){
       ctx.textAlign='center'; ctx.fillStyle='rgba(253,243,231,.8)'; ctx.font='11px "Jersey 15", monospace';
       ctx.fillText(s.shaftName, RUN.w/2, HUD_H+16); ctx.textAlign='left';
     }
@@ -2492,7 +2497,7 @@ if(!HEADLESS){
         }
         guard++; }
       // rotor hum
-      if(!muted && s.rotor && s.phase==='play'){ beamHum+=dt; if(beamHum>90){ beamHum=0; tone(120+Math.random()*20,0.05,'sawtooth',0.018); } }
+      if(!muted && s.rotor && s.phase==='play' && !s.beat){ beamHum+=dt; if(beamHum>90){ beamHum=0; tone(120+Math.random()*20,0.05,'sawtooth',0.018); } }
     } else { acc=0; }
     // camera
     const target=Math.max(0, Math.min(s.H*TILE-(RUN.h-HUD_H), s.by - (RUN.h-HUD_H)*0.45));
